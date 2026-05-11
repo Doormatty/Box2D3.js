@@ -43,6 +43,45 @@
     return Object.freeze({ kind: kind, handle: handle });
   }
 
+  function makeOptionalHandle(kind, handle) {
+    return handle ? Object.freeze({ kind: kind, handle: handle }) : null;
+  }
+
+  function readFilter(def) {
+    def = def || {};
+    var filter = def.filter || {};
+    return {
+      categoryBits: Number(def.categoryBits == null ? filter.categoryBits == null ? 1 : filter.categoryBits : def.categoryBits) >>> 0,
+      maskBits: Number(def.maskBits == null ? filter.maskBits == null ? 0xffffffff : filter.maskBits : def.maskBits) >>> 0,
+      groupIndex: Number(def.groupIndex == null ? filter.groupIndex == null ? 0 : filter.groupIndex : def.groupIndex),
+    };
+  }
+
+  function readShapeOptions(def, densityFallback) {
+    def = def || {};
+    var filter = readFilter(def);
+    var material = def.surfaceMaterial || def.material || {};
+    return {
+      density: Number(def.density == null ? densityFallback : def.density),
+      friction: Number(def.friction == null ? material.friction == null ? 0.6 : material.friction : def.friction),
+      restitution: Number(def.restitution == null ? material.restitution == null ? 0 : material.restitution : def.restitution),
+      rollingResistance: Number(
+        def.rollingResistance == null ? material.rollingResistance == null ? 0 : material.rollingResistance : def.rollingResistance
+      ),
+      tangentSpeed: Number(def.tangentSpeed == null ? material.tangentSpeed == null ? 0 : material.tangentSpeed : def.tangentSpeed),
+      userMaterialId:
+        Number(def.userMaterialId == null ? material.userMaterialId == null ? 0 : material.userMaterialId : def.userMaterialId) >>> 0,
+      customColor: Number(def.customColor == null ? material.customColor == null ? 0 : material.customColor : def.customColor) >>> 0,
+      groupIndex: filter.groupIndex,
+      categoryBits: filter.categoryBits,
+      maskBits: filter.maskBits,
+      isSensor: def.isSensor ? 1 : 0,
+      enableSensorEvents: def.enableSensorEvents ? 1 : 0,
+      enableContactEvents: def.enableContactEvents ? 1 : 0,
+      enableHitEvents: def.enableHitEvents ? 1 : 0,
+    };
+  }
+
   function normalizeVertices(vertices) {
     if (!Array.isArray(vertices) && !ArrayBuffer.isView(vertices)) {
       throw new TypeError("vertices must be an array");
@@ -83,6 +122,10 @@
     return flat;
   }
 
+  function readSurfaceMaterial(def) {
+    return readShapeOptions(def || {}, 0);
+  }
+
   async function Box2D(options) {
     options = options || {};
 
@@ -111,15 +154,27 @@
 
     function createBoxShape(body, def) {
       def = def || {};
+      var options = readShapeOptions(def, 1);
       return makeHandle(
         "shape",
         Module._b2js_create_box_shape(
           handleValue(body, "body"),
           Number(def.hx),
           Number(def.hy),
-          Number(def.density == null ? 1 : def.density),
-          Number(def.friction == null ? 0.6 : def.friction),
-          Number(def.groupIndex == null ? 0 : def.groupIndex)
+          options.density,
+          options.friction,
+          options.restitution,
+          options.rollingResistance,
+          options.tangentSpeed,
+          options.userMaterialId,
+          options.customColor,
+          options.groupIndex,
+          options.categoryBits,
+          options.maskBits,
+          options.isSensor,
+          options.enableSensorEvents,
+          options.enableContactEvents,
+          options.enableHitEvents
         )
       );
     }
@@ -127,6 +182,7 @@
     function createCircleShape(body, def) {
       def = def || {};
       var center = readVec2(def.center, 0, 0);
+      var options = readShapeOptions(def, 1);
       return makeHandle(
         "shape",
         Module._b2js_create_circle_shape(
@@ -134,9 +190,52 @@
           center.x,
           center.y,
           Number(def.radius),
-          Number(def.density == null ? 1 : def.density),
-          Number(def.friction == null ? 0.6 : def.friction),
-          Number(def.groupIndex == null ? 0 : def.groupIndex)
+          options.density,
+          options.friction,
+          options.restitution,
+          options.rollingResistance,
+          options.tangentSpeed,
+          options.userMaterialId,
+          options.customColor,
+          options.groupIndex,
+          options.categoryBits,
+          options.maskBits,
+          options.isSensor,
+          options.enableSensorEvents,
+          options.enableContactEvents,
+          options.enableHitEvents
+        )
+      );
+    }
+
+    function createCapsuleShape(body, def) {
+      def = def || {};
+      var center1 = readVec2(def.center1 || def.p1, 0, -0.5);
+      var center2 = readVec2(def.center2 || def.p2, 0, 0.5);
+      var options = readShapeOptions(def, 1);
+      return makeHandle(
+        "shape",
+        Module._b2js_create_capsule_shape(
+          handleValue(body, "body"),
+          center1.x,
+          center1.y,
+          center2.x,
+          center2.y,
+          Number(def.radius),
+          options.density,
+          options.friction,
+          options.restitution,
+          options.rollingResistance,
+          options.tangentSpeed,
+          options.userMaterialId,
+          options.customColor,
+          options.groupIndex,
+          options.categoryBits,
+          options.maskBits,
+          options.isSensor,
+          options.enableSensorEvents,
+          options.enableContactEvents,
+          options.enableHitEvents
         )
       );
     }
@@ -145,6 +244,7 @@
       def = def || {};
       var p1 = readVec2(def.p1, 0, 0);
       var p2 = readVec2(def.p2, 0, 0);
+      var options = readShapeOptions(def, 0);
       return makeHandle(
         "shape",
         Module._b2js_create_segment_shape(
@@ -153,8 +253,19 @@
           p1.y,
           p2.x,
           p2.y,
-          Number(def.friction == null ? 0.6 : def.friction),
-          Number(def.groupIndex == null ? 0 : def.groupIndex)
+          options.friction,
+          options.restitution,
+          options.rollingResistance,
+          options.tangentSpeed,
+          options.userMaterialId,
+          options.customColor,
+          options.groupIndex,
+          options.categoryBits,
+          options.maskBits,
+          options.isSensor,
+          options.enableSensorEvents,
+          options.enableContactEvents,
+          options.enableHitEvents
         )
       );
     }
@@ -164,6 +275,7 @@
       var vertices = normalizeVertices(def.vertices);
       var count = vertices.length / 2;
       var ptr = Module._malloc(vertices.byteLength);
+      var options = readShapeOptions(def, 1);
 
       try {
         Module.HEAPF32.set(vertices, ptr >> 2);
@@ -173,9 +285,54 @@
             handleValue(body, "body"),
             ptr,
             count,
-            Number(def.density == null ? 1 : def.density),
-            Number(def.friction == null ? 0.6 : def.friction),
-            Number(def.groupIndex == null ? 0 : def.groupIndex)
+            options.density,
+            options.friction,
+            options.restitution,
+            options.rollingResistance,
+            options.tangentSpeed,
+            options.userMaterialId,
+            options.customColor,
+            options.groupIndex,
+            options.categoryBits,
+            options.maskBits,
+            options.isSensor,
+            options.enableSensorEvents,
+            options.enableContactEvents,
+            options.enableHitEvents
+          )
+        );
+      } finally {
+        Module._free(ptr);
+      }
+    }
+
+    function createChain(body, def) {
+      def = def || {};
+      var vertices = normalizeVertices(def.vertices || def.points);
+      var count = vertices.length / 2;
+      var ptr = Module._malloc(vertices.byteLength);
+      var material = readSurfaceMaterial(def);
+      var filter = readFilter(def);
+
+      try {
+        Module.HEAPF32.set(vertices, ptr >> 2);
+        return makeHandle(
+          "chain",
+          Module._b2js_create_chain(
+            handleValue(body, "body"),
+            ptr,
+            count,
+            def.isLoop || def.loop ? 1 : 0,
+            material.friction,
+            material.restitution,
+            material.rollingResistance,
+            material.tangentSpeed,
+            material.userMaterialId,
+            material.customColor,
+            filter.groupIndex,
+            filter.categoryBits,
+            filter.maskBits,
+            def.enableSensorEvents ? 1 : 0
           )
         );
       } finally {
@@ -203,6 +360,17 @@
 
       var anchor = readVec2(def.anchor, 0, 0);
       return { local: false, a: anchor, b: anchor };
+    }
+
+    function readJointAxis(def, fallbackX, fallbackY) {
+      def = def || {};
+      if (def.localAxis) {
+        var localAxis = readVec2(def.localAxis, fallbackX, fallbackY);
+        return { x: localAxis.x, y: localAxis.y, local: true };
+      }
+
+      var axis = readVec2(def.axis, fallbackX, fallbackY);
+      return { x: axis.x, y: axis.y, local: false };
     }
 
     function createDistanceJoint(world, bodyA, bodyB, def) {
@@ -273,6 +441,129 @@
           readNumber(def.motorSpeed, 0),
           readNumber(def.maxMotorTorque, 0),
           def.collideConnected ? 1 : 0,
+          readNumber(def.constraintHertz, NaN),
+          readNumber(def.constraintDampingRatio, NaN),
+          readNumber(def.forceThreshold, NaN),
+          readNumber(def.torqueThreshold, NaN),
+          readNumber(def.drawScale, NaN)
+        )
+      );
+    }
+
+    function createFilterJoint(world, bodyA, bodyB, def) {
+      def = def || {};
+      return makeHandle(
+        "joint",
+        Module._b2js_create_filter_joint(
+          handleValue(world, "world"),
+          handleValue(bodyA, "body"),
+          handleValue(bodyB, "body"),
+          def.collideConnected ? 1 : 0,
+          readNumber(def.constraintHertz, NaN),
+          readNumber(def.constraintDampingRatio, NaN),
+          readNumber(def.forceThreshold, NaN),
+          readNumber(def.torqueThreshold, NaN),
+          readNumber(def.drawScale, NaN)
+        )
+      );
+    }
+
+    function createPrismaticJoint(world, bodyA, bodyB, def) {
+      def = def || {};
+      var anchors = readJointAnchors(def);
+      var axis = readJointAxis(def, 1, 0);
+      return makeHandle(
+        "joint",
+        Module._b2js_create_prismatic_joint(
+          handleValue(world, "world"),
+          handleValue(bodyA, "body"),
+          handleValue(bodyB, "body"),
+          anchors.local || axis.local ? 1 : 0,
+          anchors.a.x,
+          anchors.a.y,
+          anchors.b.x,
+          anchors.b.y,
+          axis.x,
+          axis.y,
+          readNumber(def.localAngleB, 0),
+          def.enableSpring ? 1 : 0,
+          readNumber(def.hertz, 0),
+          readNumber(def.dampingRatio, 0),
+          readNumber(def.targetTranslation, 0),
+          def.enableLimit ? 1 : 0,
+          readNumber(def.lowerTranslation == null ? def.lowerLimit : def.lowerTranslation, 0),
+          readNumber(def.upperTranslation == null ? def.upperLimit : def.upperTranslation, 0),
+          def.enableMotor ? 1 : 0,
+          readNumber(def.motorSpeed, 0),
+          readNumber(def.maxMotorForce, 0),
+          def.collideConnected ? 1 : 0,
+          readNumber(def.constraintHertz, NaN),
+          readNumber(def.constraintDampingRatio, NaN),
+          readNumber(def.forceThreshold, NaN),
+          readNumber(def.torqueThreshold, NaN),
+          readNumber(def.drawScale, NaN)
+        )
+      );
+    }
+
+    function createWheelJoint(world, bodyA, bodyB, def) {
+      def = def || {};
+      var anchors = readJointAnchors(def);
+      var axis = readJointAxis(def, 0, 1);
+      return makeHandle(
+        "joint",
+        Module._b2js_create_wheel_joint(
+          handleValue(world, "world"),
+          handleValue(bodyA, "body"),
+          handleValue(bodyB, "body"),
+          anchors.local || axis.local ? 1 : 0,
+          anchors.a.x,
+          anchors.a.y,
+          anchors.b.x,
+          anchors.b.y,
+          axis.x,
+          axis.y,
+          readNumber(def.localAngleB, 0),
+          def.enableSpring ? 1 : 0,
+          readNumber(def.hertz, 0),
+          readNumber(def.dampingRatio, 0),
+          def.enableLimit ? 1 : 0,
+          readNumber(def.lowerTranslation == null ? def.lowerLimit : def.lowerTranslation, 0),
+          readNumber(def.upperTranslation == null ? def.upperLimit : def.upperTranslation, 0),
+          def.enableMotor ? 1 : 0,
+          readNumber(def.motorSpeed, 0),
+          readNumber(def.maxMotorTorque, 0),
+          def.collideConnected ? 1 : 0,
+          readNumber(def.constraintHertz, NaN),
+          readNumber(def.constraintDampingRatio, NaN),
+          readNumber(def.forceThreshold, NaN),
+          readNumber(def.torqueThreshold, NaN),
+          readNumber(def.drawScale, NaN)
+        )
+      );
+    }
+
+    function createMotorJoint(world, bodyA, bodyB, def) {
+      def = def || {};
+      var linearVelocity = readVec2(def.linearVelocity, 0, 0);
+      return makeHandle(
+        "joint",
+        Module._b2js_create_motor_joint(
+          handleValue(world, "world"),
+          handleValue(bodyA, "body"),
+          handleValue(bodyB, "body"),
+          def.collideConnected ? 1 : 0,
+          linearVelocity.x,
+          linearVelocity.y,
+          readNumber(def.angularVelocity, 0),
+          readNumber(def.maxVelocityForce, 0),
+          readNumber(def.maxVelocityTorque, 0),
+          readNumber(def.linearHertz, 0),
+          readNumber(def.linearDampingRatio, 0),
+          readNumber(def.maxSpringForce, 0),
+          readNumber(def.angularHertz, 0),
+          readNumber(def.angularDampingRatio, 0),
+          readNumber(def.maxSpringTorque, 0),
           readNumber(def.constraintHertz, NaN),
           readNumber(def.constraintDampingRatio, NaN),
           readNumber(def.forceThreshold, NaN),
@@ -378,6 +669,343 @@
       }
     }
 
+    function readRayResult(shapeHandle, data) {
+      if (!shapeHandle) {
+        return null;
+      }
+
+      return {
+        shape: makeOptionalHandle("shape", shapeHandle),
+        point: { x: data[0], y: data[1] },
+        normal: { x: data[2], y: data[3] },
+        fraction: data[4],
+        nodeVisits: data[5],
+        leafVisits: data[6],
+      };
+    }
+
+    function castRayClosest(world, def) {
+      def = def || {};
+      var origin = readVec2(def.origin, 0, 0);
+      var translation = readVec2(def.translation, 0, 0);
+      var filter = readFilter(def);
+      var ptr = Module._malloc(7 * Float32Array.BYTES_PER_ELEMENT);
+
+      try {
+        var shapeHandle = Module._b2js_world_cast_ray_closest(
+          handleValue(world, "world"),
+          origin.x,
+          origin.y,
+          translation.x,
+          translation.y,
+          filter.categoryBits,
+          filter.maskBits,
+          ptr
+        );
+        var data = Module.HEAPF32.slice(ptr >> 2, (ptr >> 2) + 7);
+        return readRayResult(shapeHandle, data);
+      } finally {
+        Module._free(ptr);
+      }
+    }
+
+    function overlapAABB(world, def) {
+      def = def || {};
+      var lower = readVec2(def.lowerBound || def.lower, 0, 0);
+      var upper = readVec2(def.upperBound || def.upper, 0, 0);
+      var filter = readFilter(def);
+      var capacity = Number(def.capacity == null ? 64 : def.capacity);
+      var ptr = Module._malloc(capacity * Int32Array.BYTES_PER_ELEMENT);
+
+      try {
+        var count = Module._b2js_world_overlap_aabb(
+          handleValue(world, "world"),
+          lower.x,
+          lower.y,
+          upper.x,
+          upper.y,
+          filter.categoryBits,
+          filter.maskBits,
+          ptr,
+          capacity
+        );
+        var handles = Module.HEAP32.subarray(ptr >> 2, (ptr >> 2) + count);
+        var results = [];
+        for (var i = 0; i < count; ++i) {
+          results.push(makeOptionalHandle("shape", handles[i]));
+        }
+        return results;
+      } finally {
+        Module._free(ptr);
+      }
+    }
+
+    function readPairEvents(world, countName, fillName, firstName, secondName) {
+      var worldHandle = handleValue(world, "world");
+      var count = Module[countName](worldHandle);
+      if (count <= 0) {
+        return [];
+      }
+
+      var ptr = Module._malloc(count * 2 * Int32Array.BYTES_PER_ELEMENT);
+      try {
+        var filled = Module[fillName](worldHandle, ptr, count);
+        var handles = Module.HEAP32.subarray(ptr >> 2, (ptr >> 2) + filled * 2);
+        var events = [];
+        for (var i = 0; i < filled; ++i) {
+          var event = {};
+          event[firstName] = makeOptionalHandle("shape", handles[i * 2]);
+          event[secondName] = makeOptionalHandle("shape", handles[i * 2 + 1]);
+          events.push(event);
+        }
+        return events;
+      } finally {
+        Module._free(ptr);
+      }
+    }
+
+    function getBodyEvents(world) {
+      var worldHandle = handleValue(world, "world");
+      var count = Module._b2js_world_get_body_event_count(worldHandle);
+      if (count <= 0) {
+        return [];
+      }
+
+      var bodyPtr = Module._malloc(count * Int32Array.BYTES_PER_ELEMENT);
+      var transformPtr = Module._malloc(count * 3 * Float32Array.BYTES_PER_ELEMENT);
+      var asleepPtr = Module._malloc(count * Int32Array.BYTES_PER_ELEMENT);
+      try {
+        var filled = Module._b2js_world_get_body_events(worldHandle, bodyPtr, transformPtr, asleepPtr, count);
+        var bodies = Module.HEAP32.subarray(bodyPtr >> 2, (bodyPtr >> 2) + filled);
+        var transforms = Module.HEAPF32.subarray(transformPtr >> 2, (transformPtr >> 2) + filled * 3);
+        var asleep = Module.HEAP32.subarray(asleepPtr >> 2, (asleepPtr >> 2) + filled);
+        var events = [];
+        for (var i = 0; i < filled; ++i) {
+          events.push({
+            body: makeOptionalHandle("body", bodies[i]),
+            position: { x: transforms[i * 3], y: transforms[i * 3 + 1] },
+            angle: transforms[i * 3 + 2],
+            fellAsleep: !!asleep[i],
+          });
+        }
+        return events;
+      } finally {
+        Module._free(bodyPtr);
+        Module._free(transformPtr);
+        Module._free(asleepPtr);
+      }
+    }
+
+    function getContactHitEvents(world) {
+      var worldHandle = handleValue(world, "world");
+      var count = Module._b2js_world_get_contact_hit_count(worldHandle);
+      if (count <= 0) {
+        return [];
+      }
+
+      var shapePtr = Module._malloc(count * 2 * Int32Array.BYTES_PER_ELEMENT);
+      var dataPtr = Module._malloc(count * 5 * Float32Array.BYTES_PER_ELEMENT);
+      try {
+        var filled = Module._b2js_world_get_contact_hit_events(worldHandle, shapePtr, dataPtr, count);
+        var shapes = Module.HEAP32.subarray(shapePtr >> 2, (shapePtr >> 2) + filled * 2);
+        var data = Module.HEAPF32.subarray(dataPtr >> 2, (dataPtr >> 2) + filled * 5);
+        var events = [];
+        for (var i = 0; i < filled; ++i) {
+          events.push({
+            shapeA: makeOptionalHandle("shape", shapes[i * 2]),
+            shapeB: makeOptionalHandle("shape", shapes[i * 2 + 1]),
+            point: { x: data[i * 5], y: data[i * 5 + 1] },
+            normal: { x: data[i * 5 + 2], y: data[i * 5 + 3] },
+            approachSpeed: data[i * 5 + 4],
+          });
+        }
+        return events;
+      } finally {
+        Module._free(shapePtr);
+        Module._free(dataPtr);
+      }
+    }
+
+    function getContactEvents(world) {
+      return {
+        begin: readPairEvents(world, "_b2js_world_get_contact_begin_count", "_b2js_world_get_contact_begin_events", "shapeA", "shapeB"),
+        end: readPairEvents(world, "_b2js_world_get_contact_end_count", "_b2js_world_get_contact_end_events", "shapeA", "shapeB"),
+        hit: getContactHitEvents(world),
+      };
+    }
+
+    function getSensorEvents(world) {
+      return {
+        begin: readPairEvents(world, "_b2js_world_get_sensor_begin_count", "_b2js_world_get_sensor_begin_events", "sensor", "visitor"),
+        end: readPairEvents(world, "_b2js_world_get_sensor_end_count", "_b2js_world_get_sensor_end_events", "sensor", "visitor"),
+      };
+    }
+
+    function getJointEvents(world) {
+      var worldHandle = handleValue(world, "world");
+      var count = Module._b2js_world_get_joint_event_count(worldHandle);
+      if (count <= 0) {
+        return [];
+      }
+
+      var ptr = Module._malloc(count * Int32Array.BYTES_PER_ELEMENT);
+      try {
+        var filled = Module._b2js_world_get_joint_events(worldHandle, ptr, count);
+        var handles = Module.HEAP32.subarray(ptr >> 2, (ptr >> 2) + filled);
+        var events = [];
+        for (var i = 0; i < filled; ++i) {
+          events.push({ joint: makeOptionalHandle("joint", handles[i]) });
+        }
+        return events;
+      } finally {
+        Module._free(ptr);
+      }
+    }
+
+    function getChainSegments(chain) {
+      var handle = handleValue(chain, "chain");
+      var count = Module._b2js_chain_get_segment_count(handle);
+      if (count <= 0) {
+        return [];
+      }
+
+      var ptr = Module._malloc(count * Int32Array.BYTES_PER_ELEMENT);
+      try {
+        var filled = Module._b2js_chain_get_segments(handle, ptr, count);
+        var handles = Module.HEAP32.subarray(ptr >> 2, (ptr >> 2) + filled);
+        var segments = [];
+        for (var i = 0; i < filled; ++i) {
+          segments.push(makeOptionalHandle("shape", handles[i]));
+        }
+        return segments;
+      } finally {
+        Module._free(ptr);
+      }
+    }
+
+    function rayCastShape(shape, def) {
+      def = def || {};
+      var origin = readVec2(def.origin, 0, 0);
+      var translation = readVec2(def.translation, 0, 0);
+      var maxFraction = readNumber(def.maxFraction, 1);
+      var ptr = Module._malloc(6 * Float32Array.BYTES_PER_ELEMENT);
+
+      try {
+        var hit = Module._b2js_shape_raycast(handleValue(shape, "shape"), origin.x, origin.y, translation.x, translation.y, maxFraction, ptr);
+        if (!hit) {
+          return null;
+        }
+
+        var data = Module.HEAPF32.subarray(ptr >> 2, (ptr >> 2) + 6);
+        return {
+          point: { x: data[0], y: data[1] },
+          normal: { x: data[2], y: data[3] },
+          fraction: data[4],
+          iterations: data[5],
+        };
+      } finally {
+        Module._free(ptr);
+      }
+    }
+
+    function getShapeAABB(shape) {
+      var ptr = Module._malloc(4 * Float32Array.BYTES_PER_ELEMENT);
+      try {
+        var ok = Module._b2js_shape_get_aabb(handleValue(shape, "shape"), ptr);
+        if (!ok) {
+          return null;
+        }
+
+        var data = Module.HEAPF32.subarray(ptr >> 2, (ptr >> 2) + 4);
+        return {
+          lowerBound: { x: data[0], y: data[1] },
+          upperBound: { x: data[2], y: data[3] },
+        };
+      } finally {
+        Module._free(ptr);
+      }
+    }
+
+    function readSurfaceMaterialResult(ok, floatPtr, intPtr) {
+      if (!ok) {
+        return null;
+      }
+
+      var floats = Module.HEAPF32.subarray(floatPtr >> 2, (floatPtr >> 2) + 4);
+      var ints = Module.HEAP32.subarray(intPtr >> 2, (intPtr >> 2) + 2);
+      return {
+        friction: floats[0],
+        restitution: floats[1],
+        rollingResistance: floats[2],
+        tangentSpeed: floats[3],
+        userMaterialId: ints[0] >>> 0,
+        customColor: ints[1] >>> 0,
+      };
+    }
+
+    function getShapeSurfaceMaterial(shape) {
+      var floatPtr = Module._malloc(4 * Float32Array.BYTES_PER_ELEMENT);
+      var intPtr = Module._malloc(2 * Int32Array.BYTES_PER_ELEMENT);
+      try {
+        return readSurfaceMaterialResult(
+          Module._b2js_shape_get_surface_material(handleValue(shape, "shape"), floatPtr, intPtr),
+          floatPtr,
+          intPtr
+        );
+      } finally {
+        Module._free(floatPtr);
+        Module._free(intPtr);
+      }
+    }
+
+    function setShapeSurfaceMaterial(shape, def) {
+      var material = readSurfaceMaterial(def);
+      Module._b2js_shape_set_surface_material(
+        handleValue(shape, "shape"),
+        material.friction,
+        material.restitution,
+        material.rollingResistance,
+        material.tangentSpeed,
+        material.userMaterialId,
+        material.customColor
+      );
+    }
+
+    function getChainSurfaceMaterial(chain, materialIndex) {
+      var floatPtr = Module._malloc(4 * Float32Array.BYTES_PER_ELEMENT);
+      var intPtr = Module._malloc(2 * Int32Array.BYTES_PER_ELEMENT);
+      try {
+        return readSurfaceMaterialResult(
+          Module._b2js_chain_get_surface_material(handleValue(chain, "chain"), Number(materialIndex || 0), floatPtr, intPtr),
+          floatPtr,
+          intPtr
+        );
+      } finally {
+        Module._free(floatPtr);
+        Module._free(intPtr);
+      }
+    }
+
+    function setChainSurfaceMaterial(chain, materialIndex, def) {
+      if (typeof materialIndex === "object") {
+        var swap = def;
+        def = materialIndex;
+        materialIndex = swap;
+      }
+
+      var material = readSurfaceMaterial(def);
+      Module._b2js_chain_set_surface_material(
+        handleValue(chain, "chain"),
+        Number(materialIndex || 0),
+        material.friction,
+        material.restitution,
+        material.rollingResistance,
+        material.tangentSpeed,
+        material.userMaterialId,
+        material.customColor
+      );
+    }
+
     var api = {
       staticBody: 0,
       kinematicBody: 1,
@@ -391,10 +1019,185 @@
       destroyBody: function (body) {
         Module._b2js_destroy_body(handleValue(body, "body"));
       },
+      getBodyType: function (body) {
+        return Module._b2js_body_get_type(handleValue(body, "body"));
+      },
+      setBodyType: function (body, type) {
+        Module._b2js_body_set_type(handleValue(body, "body"), Number(type));
+      },
+      setBodyTransform: function (body, def) {
+        def = def || {};
+        var position = readVec2(def.position, 0, 0);
+        Module._b2js_body_set_transform(handleValue(body, "body"), position.x, position.y, readNumber(def.angle, 0));
+      },
+      setBodyVelocity: function (body, def) {
+        def = def || {};
+        var velocity = readVec2(def.linearVelocity || def.velocity, 0, 0);
+        Module._b2js_body_set_velocity(handleValue(body, "body"), velocity.x, velocity.y, readNumber(def.angularVelocity, 0));
+      },
+      setBodyLinearVelocity: function (body, velocity) {
+        velocity = readVec2(velocity, 0, 0);
+        Module._b2js_body_set_linear_velocity(handleValue(body, "body"), velocity.x, velocity.y);
+      },
+      setBodyAngularVelocity: function (body, angularVelocity) {
+        Module._b2js_body_set_angular_velocity(handleValue(body, "body"), Number(angularVelocity));
+      },
+      getBodyAngularVelocity: function (body) {
+        return Module._b2js_body_get_angular_velocity(handleValue(body, "body"));
+      },
+      applyForce: function (body, force, point, wake) {
+        force = readVec2(force, 0, 0);
+        point = readVec2(point, 0, 0);
+        Module._b2js_body_apply_force(handleValue(body, "body"), force.x, force.y, point.x, point.y, wake === false ? 0 : 1);
+      },
+      applyForceToCenter: function (body, force, wake) {
+        force = readVec2(force, 0, 0);
+        Module._b2js_body_apply_force_to_center(handleValue(body, "body"), force.x, force.y, wake === false ? 0 : 1);
+      },
+      applyTorque: function (body, torque, wake) {
+        Module._b2js_body_apply_torque(handleValue(body, "body"), Number(torque), wake === false ? 0 : 1);
+      },
+      applyLinearImpulse: function (body, impulse, point, wake) {
+        impulse = readVec2(impulse, 0, 0);
+        point = readVec2(point, 0, 0);
+        Module._b2js_body_apply_linear_impulse(handleValue(body, "body"), impulse.x, impulse.y, point.x, point.y, wake === false ? 0 : 1);
+      },
+      applyLinearImpulseToCenter: function (body, impulse, wake) {
+        impulse = readVec2(impulse, 0, 0);
+        Module._b2js_body_apply_linear_impulse_to_center(handleValue(body, "body"), impulse.x, impulse.y, wake === false ? 0 : 1);
+      },
+      applyAngularImpulse: function (body, impulse, wake) {
+        Module._b2js_body_apply_angular_impulse(handleValue(body, "body"), Number(impulse), wake === false ? 0 : 1);
+      },
+      setBodyAwake: function (body, awake) {
+        Module._b2js_body_set_awake(handleValue(body, "body"), awake ? 1 : 0);
+      },
+      isBodyAwake: function (body) {
+        return !!Module._b2js_body_is_awake(handleValue(body, "body"));
+      },
+      setBodyEnabled: function (body, enabled) {
+        Module._b2js_body_set_enabled(handleValue(body, "body"), enabled ? 1 : 0);
+      },
+      isBodyEnabled: function (body) {
+        return !!Module._b2js_body_is_enabled(handleValue(body, "body"));
+      },
+      setBodyBullet: function (body, bullet) {
+        Module._b2js_body_set_bullet(handleValue(body, "body"), bullet ? 1 : 0);
+      },
+      isBodyBullet: function (body) {
+        return !!Module._b2js_body_is_bullet(handleValue(body, "body"));
+      },
+      setBodyGravityScale: function (body, gravityScale) {
+        Module._b2js_body_set_gravity_scale(handleValue(body, "body"), Number(gravityScale));
+      },
+      getBodyGravityScale: function (body) {
+        return Module._b2js_body_get_gravity_scale(handleValue(body, "body"));
+      },
+      setBodyDamping: function (body, def) {
+        def = def || {};
+        Module._b2js_body_set_damping(handleValue(body, "body"), readNumber(def.linearDamping, 0), readNumber(def.angularDamping, 0));
+      },
+      getBodyDamping: function (body) {
+        var handle = handleValue(body, "body");
+        return {
+          linearDamping: Module._b2js_body_get_linear_damping(handle),
+          angularDamping: Module._b2js_body_get_angular_damping(handle),
+        };
+      },
       createBoxShape: createBoxShape,
       createCircleShape: createCircleShape,
+      createCapsuleShape: createCapsuleShape,
       createSegmentShape: createSegmentShape,
       createPolygonShape: createPolygonShape,
+      createChain: createChain,
+      destroyChain: function (chain) {
+        Module._b2js_destroy_chain(handleValue(chain, "chain"));
+      },
+      getChainSegmentCount: function (chain) {
+        return Module._b2js_chain_get_segment_count(handleValue(chain, "chain"));
+      },
+      getChainSegments: getChainSegments,
+      getChainSurfaceMaterialCount: function (chain) {
+        return Module._b2js_chain_get_surface_material_count(handleValue(chain, "chain"));
+      },
+      getChainSurfaceMaterial: getChainSurfaceMaterial,
+      setChainSurfaceMaterial: setChainSurfaceMaterial,
+      destroyShape: function (shape, updateBodyMass) {
+        Module._b2js_destroy_shape(handleValue(shape, "shape"), updateBodyMass === false ? 0 : 1);
+      },
+      circleShape: 0,
+      capsuleShape: 1,
+      segmentShape: 2,
+      polygonShape: 3,
+      chainSegmentShape: 4,
+      getShapeType: function (shape) {
+        return Module._b2js_shape_get_type(handleValue(shape, "shape"));
+      },
+      isShapeSensor: function (shape) {
+        return !!Module._b2js_shape_is_sensor(handleValue(shape, "shape"));
+      },
+      setShapeDensity: function (shape, density, updateBodyMass) {
+        Module._b2js_shape_set_density(handleValue(shape, "shape"), Number(density), updateBodyMass === false ? 0 : 1);
+      },
+      getShapeDensity: function (shape) {
+        return Module._b2js_shape_get_density(handleValue(shape, "shape"));
+      },
+      setShapeFriction: function (shape, friction) {
+        Module._b2js_shape_set_friction(handleValue(shape, "shape"), Number(friction));
+      },
+      getShapeFriction: function (shape) {
+        return Module._b2js_shape_get_friction(handleValue(shape, "shape"));
+      },
+      setShapeRestitution: function (shape, restitution) {
+        Module._b2js_shape_set_restitution(handleValue(shape, "shape"), Number(restitution));
+      },
+      getShapeRestitution: function (shape) {
+        return Module._b2js_shape_get_restitution(handleValue(shape, "shape"));
+      },
+      setShapeSurfaceMaterial: setShapeSurfaceMaterial,
+      getShapeSurfaceMaterial: getShapeSurfaceMaterial,
+      setShapeUserMaterial: function (shape, userMaterialId) {
+        Module._b2js_shape_set_user_material(handleValue(shape, "shape"), Number(userMaterialId) >>> 0);
+      },
+      getShapeUserMaterial: function (shape) {
+        return Module._b2js_shape_get_user_material(handleValue(shape, "shape")) >>> 0;
+      },
+      setShapeFilter: function (shape, filterDef) {
+        var filter = readFilter(filterDef);
+        Module._b2js_shape_set_filter(handleValue(shape, "shape"), filter.categoryBits, filter.maskBits, filter.groupIndex);
+      },
+      getShapeFilter: function (shape) {
+        var handle = handleValue(shape, "shape");
+        return {
+          categoryBits: Module._b2js_shape_get_category_bits(handle),
+          maskBits: Module._b2js_shape_get_mask_bits(handle),
+          groupIndex: Module._b2js_shape_get_group_index(handle),
+        };
+      },
+      enableShapeSensorEvents: function (shape, enabled) {
+        Module._b2js_shape_enable_sensor_events(handleValue(shape, "shape"), enabled ? 1 : 0);
+      },
+      areShapeSensorEventsEnabled: function (shape) {
+        return !!Module._b2js_shape_are_sensor_events_enabled(handleValue(shape, "shape"));
+      },
+      enableShapeContactEvents: function (shape, enabled) {
+        Module._b2js_shape_enable_contact_events(handleValue(shape, "shape"), enabled ? 1 : 0);
+      },
+      areShapeContactEventsEnabled: function (shape) {
+        return !!Module._b2js_shape_are_contact_events_enabled(handleValue(shape, "shape"));
+      },
+      enableShapeHitEvents: function (shape, enabled) {
+        Module._b2js_shape_enable_hit_events(handleValue(shape, "shape"), enabled ? 1 : 0);
+      },
+      areShapeHitEventsEnabled: function (shape) {
+        return !!Module._b2js_shape_are_hit_events_enabled(handleValue(shape, "shape"));
+      },
+      testShapePoint: function (shape, point) {
+        point = readVec2(point, 0, 0);
+        return !!Module._b2js_shape_test_point(handleValue(shape, "shape"), point.x, point.y);
+      },
+      rayCastShape: rayCastShape,
+      getShapeAABB: getShapeAABB,
       distanceJoint: 0,
       filterJoint: 1,
       motorJoint: 2,
@@ -404,6 +1207,10 @@
       wheelJoint: 6,
       createDistanceJoint: createDistanceJoint,
       createRevoluteJoint: createRevoluteJoint,
+      createFilterJoint: createFilterJoint,
+      createPrismaticJoint: createPrismaticJoint,
+      createWheelJoint: createWheelJoint,
+      createMotorJoint: createMotorJoint,
       setRevoluteJointMotor: setRevoluteJointMotor,
       destroyJoint: function (joint, wakeAttached) {
         Module._b2js_destroy_joint(jointHandle(joint), wakeAttached === false ? 0 : 1);
@@ -613,6 +1420,280 @@
       getRevoluteJointMaxMotorTorque: function (joint) {
         return Module._b2js_revolute_joint_get_max_motor_torque(jointHandle(joint));
       },
+      enablePrismaticJointSpring: function (joint, enabled) {
+        Module._b2js_prismatic_joint_enable_spring(jointHandle(joint), enabled ? 1 : 0);
+      },
+      isPrismaticJointSpringEnabled: function (joint) {
+        return !!Module._b2js_prismatic_joint_is_spring_enabled(jointHandle(joint));
+      },
+      setPrismaticJointSpringHertz: function (joint, hertz) {
+        Module._b2js_prismatic_joint_set_spring_hertz(jointHandle(joint), Number(hertz));
+      },
+      getPrismaticJointSpringHertz: function (joint) {
+        return Module._b2js_prismatic_joint_get_spring_hertz(jointHandle(joint));
+      },
+      setPrismaticJointSpringDampingRatio: function (joint, dampingRatio) {
+        Module._b2js_prismatic_joint_set_spring_damping_ratio(jointHandle(joint), Number(dampingRatio));
+      },
+      getPrismaticJointSpringDampingRatio: function (joint) {
+        return Module._b2js_prismatic_joint_get_spring_damping_ratio(jointHandle(joint));
+      },
+      setPrismaticJointTargetTranslation: function (joint, translation) {
+        Module._b2js_prismatic_joint_set_target_translation(jointHandle(joint), Number(translation));
+      },
+      getPrismaticJointTargetTranslation: function (joint) {
+        return Module._b2js_prismatic_joint_get_target_translation(jointHandle(joint));
+      },
+      enablePrismaticJointLimit: function (joint, enabled) {
+        Module._b2js_prismatic_joint_enable_limit(jointHandle(joint), enabled ? 1 : 0);
+      },
+      isPrismaticJointLimitEnabled: function (joint) {
+        return !!Module._b2js_prismatic_joint_is_limit_enabled(jointHandle(joint));
+      },
+      getPrismaticJointLowerLimit: function (joint) {
+        return Module._b2js_prismatic_joint_get_lower_limit(jointHandle(joint));
+      },
+      getPrismaticJointUpperLimit: function (joint) {
+        return Module._b2js_prismatic_joint_get_upper_limit(jointHandle(joint));
+      },
+      setPrismaticJointLimits: function (joint, lower, upper) {
+        Module._b2js_prismatic_joint_set_limits(jointHandle(joint), Number(lower), Number(upper));
+      },
+      enablePrismaticJointMotor: function (joint, enabled) {
+        Module._b2js_prismatic_joint_enable_motor(jointHandle(joint), enabled ? 1 : 0);
+      },
+      isPrismaticJointMotorEnabled: function (joint) {
+        return !!Module._b2js_prismatic_joint_is_motor_enabled(jointHandle(joint));
+      },
+      setPrismaticJointMotorSpeed: function (joint, motorSpeed) {
+        Module._b2js_prismatic_joint_set_motor_speed(jointHandle(joint), Number(motorSpeed));
+      },
+      getPrismaticJointMotorSpeed: function (joint) {
+        return Module._b2js_prismatic_joint_get_motor_speed(jointHandle(joint));
+      },
+      setPrismaticJointMaxMotorForce: function (joint, force) {
+        Module._b2js_prismatic_joint_set_max_motor_force(jointHandle(joint), Number(force));
+      },
+      getPrismaticJointMaxMotorForce: function (joint) {
+        return Module._b2js_prismatic_joint_get_max_motor_force(jointHandle(joint));
+      },
+      getPrismaticJointMotorForce: function (joint) {
+        return Module._b2js_prismatic_joint_get_motor_force(jointHandle(joint));
+      },
+      getPrismaticJointTranslation: function (joint) {
+        return Module._b2js_prismatic_joint_get_translation(jointHandle(joint));
+      },
+      getPrismaticJointSpeed: function (joint) {
+        return Module._b2js_prismatic_joint_get_speed(jointHandle(joint));
+      },
+      enableWheelJointSpring: function (joint, enabled) {
+        Module._b2js_wheel_joint_enable_spring(jointHandle(joint), enabled ? 1 : 0);
+      },
+      isWheelJointSpringEnabled: function (joint) {
+        return !!Module._b2js_wheel_joint_is_spring_enabled(jointHandle(joint));
+      },
+      setWheelJointSpringHertz: function (joint, hertz) {
+        Module._b2js_wheel_joint_set_spring_hertz(jointHandle(joint), Number(hertz));
+      },
+      getWheelJointSpringHertz: function (joint) {
+        return Module._b2js_wheel_joint_get_spring_hertz(jointHandle(joint));
+      },
+      setWheelJointSpringDampingRatio: function (joint, dampingRatio) {
+        Module._b2js_wheel_joint_set_spring_damping_ratio(jointHandle(joint), Number(dampingRatio));
+      },
+      getWheelJointSpringDampingRatio: function (joint) {
+        return Module._b2js_wheel_joint_get_spring_damping_ratio(jointHandle(joint));
+      },
+      enableWheelJointLimit: function (joint, enabled) {
+        Module._b2js_wheel_joint_enable_limit(jointHandle(joint), enabled ? 1 : 0);
+      },
+      isWheelJointLimitEnabled: function (joint) {
+        return !!Module._b2js_wheel_joint_is_limit_enabled(jointHandle(joint));
+      },
+      getWheelJointLowerLimit: function (joint) {
+        return Module._b2js_wheel_joint_get_lower_limit(jointHandle(joint));
+      },
+      getWheelJointUpperLimit: function (joint) {
+        return Module._b2js_wheel_joint_get_upper_limit(jointHandle(joint));
+      },
+      setWheelJointLimits: function (joint, lower, upper) {
+        Module._b2js_wheel_joint_set_limits(jointHandle(joint), Number(lower), Number(upper));
+      },
+      enableWheelJointMotor: function (joint, enabled) {
+        Module._b2js_wheel_joint_enable_motor(jointHandle(joint), enabled ? 1 : 0);
+      },
+      isWheelJointMotorEnabled: function (joint) {
+        return !!Module._b2js_wheel_joint_is_motor_enabled(jointHandle(joint));
+      },
+      setWheelJointMotorSpeed: function (joint, motorSpeed) {
+        Module._b2js_wheel_joint_set_motor_speed(jointHandle(joint), Number(motorSpeed));
+      },
+      getWheelJointMotorSpeed: function (joint) {
+        return Module._b2js_wheel_joint_get_motor_speed(jointHandle(joint));
+      },
+      setWheelJointMaxMotorTorque: function (joint, torque) {
+        Module._b2js_wheel_joint_set_max_motor_torque(jointHandle(joint), Number(torque));
+      },
+      getWheelJointMaxMotorTorque: function (joint) {
+        return Module._b2js_wheel_joint_get_max_motor_torque(jointHandle(joint));
+      },
+      getWheelJointMotorTorque: function (joint) {
+        return Module._b2js_wheel_joint_get_motor_torque(jointHandle(joint));
+      },
+      setMotorJointLinearVelocity: function (joint, velocity) {
+        velocity = readVec2(velocity, 0, 0);
+        Module._b2js_motor_joint_set_linear_velocity(jointHandle(joint), velocity.x, velocity.y);
+      },
+      getMotorJointLinearVelocity: function (joint) {
+        var handle = jointHandle(joint);
+        return {
+          x: Module._b2js_motor_joint_get_linear_velocity_x(handle),
+          y: Module._b2js_motor_joint_get_linear_velocity_y(handle),
+        };
+      },
+      setMotorJointAngularVelocity: function (joint, velocity) {
+        Module._b2js_motor_joint_set_angular_velocity(jointHandle(joint), Number(velocity));
+      },
+      getMotorJointAngularVelocity: function (joint) {
+        return Module._b2js_motor_joint_get_angular_velocity(jointHandle(joint));
+      },
+      setMotorJointMaxVelocityForce: function (joint, force) {
+        Module._b2js_motor_joint_set_max_velocity_force(jointHandle(joint), Number(force));
+      },
+      getMotorJointMaxVelocityForce: function (joint) {
+        return Module._b2js_motor_joint_get_max_velocity_force(jointHandle(joint));
+      },
+      setMotorJointMaxVelocityTorque: function (joint, torque) {
+        Module._b2js_motor_joint_set_max_velocity_torque(jointHandle(joint), Number(torque));
+      },
+      getMotorJointMaxVelocityTorque: function (joint) {
+        return Module._b2js_motor_joint_get_max_velocity_torque(jointHandle(joint));
+      },
+      setMotorJointLinearHertz: function (joint, hertz) {
+        Module._b2js_motor_joint_set_linear_hertz(jointHandle(joint), Number(hertz));
+      },
+      getMotorJointLinearHertz: function (joint) {
+        return Module._b2js_motor_joint_get_linear_hertz(jointHandle(joint));
+      },
+      setMotorJointLinearDampingRatio: function (joint, dampingRatio) {
+        Module._b2js_motor_joint_set_linear_damping_ratio(jointHandle(joint), Number(dampingRatio));
+      },
+      getMotorJointLinearDampingRatio: function (joint) {
+        return Module._b2js_motor_joint_get_linear_damping_ratio(jointHandle(joint));
+      },
+      setMotorJointAngularHertz: function (joint, hertz) {
+        Module._b2js_motor_joint_set_angular_hertz(jointHandle(joint), Number(hertz));
+      },
+      getMotorJointAngularHertz: function (joint) {
+        return Module._b2js_motor_joint_get_angular_hertz(jointHandle(joint));
+      },
+      setMotorJointAngularDampingRatio: function (joint, dampingRatio) {
+        Module._b2js_motor_joint_set_angular_damping_ratio(jointHandle(joint), Number(dampingRatio));
+      },
+      getMotorJointAngularDampingRatio: function (joint) {
+        return Module._b2js_motor_joint_get_angular_damping_ratio(jointHandle(joint));
+      },
+      setMotorJointMaxSpringForce: function (joint, force) {
+        Module._b2js_motor_joint_set_max_spring_force(jointHandle(joint), Number(force));
+      },
+      getMotorJointMaxSpringForce: function (joint) {
+        return Module._b2js_motor_joint_get_max_spring_force(jointHandle(joint));
+      },
+      setMotorJointMaxSpringTorque: function (joint, torque) {
+        Module._b2js_motor_joint_set_max_spring_torque(jointHandle(joint), Number(torque));
+      },
+      getMotorJointMaxSpringTorque: function (joint) {
+        return Module._b2js_motor_joint_get_max_spring_torque(jointHandle(joint));
+      },
+      setWorldGravity: function (world, gravity) {
+        gravity = readVec2(gravity, 0, -10);
+        Module._b2js_world_set_gravity(handleValue(world, "world"), gravity.x, gravity.y);
+      },
+      getWorldGravity: function (world) {
+        var handle = handleValue(world, "world");
+        return {
+          x: Module._b2js_world_get_gravity_x(handle),
+          y: Module._b2js_world_get_gravity_y(handle),
+        };
+      },
+      enableWorldSleeping: function (world, enabled) {
+        Module._b2js_world_enable_sleeping(handleValue(world, "world"), enabled ? 1 : 0);
+      },
+      isWorldSleepingEnabled: function (world) {
+        return !!Module._b2js_world_is_sleeping_enabled(handleValue(world, "world"));
+      },
+      enableWorldContinuous: function (world, enabled) {
+        Module._b2js_world_enable_continuous(handleValue(world, "world"), enabled ? 1 : 0);
+      },
+      isWorldContinuousEnabled: function (world) {
+        return !!Module._b2js_world_is_continuous_enabled(handleValue(world, "world"));
+      },
+      setWorldRestitutionThreshold: function (world, value) {
+        Module._b2js_world_set_restitution_threshold(handleValue(world, "world"), Number(value));
+      },
+      getWorldRestitutionThreshold: function (world) {
+        return Module._b2js_world_get_restitution_threshold(handleValue(world, "world"));
+      },
+      setWorldHitEventThreshold: function (world, value) {
+        Module._b2js_world_set_hit_event_threshold(handleValue(world, "world"), Number(value));
+      },
+      getWorldHitEventThreshold: function (world) {
+        return Module._b2js_world_get_hit_event_threshold(handleValue(world, "world"));
+      },
+      setWorldContactTuning: function (world, def) {
+        def = def || {};
+        Module._b2js_world_set_contact_tuning(
+          handleValue(world, "world"),
+          readNumber(def.hertz, 30),
+          readNumber(def.dampingRatio, 10),
+          readNumber(def.pushSpeed, 3)
+        );
+      },
+      setWorldContactRecycleDistance: function (world, value) {
+        Module._b2js_world_set_contact_recycle_distance(handleValue(world, "world"), Number(value));
+      },
+      getWorldContactRecycleDistance: function (world) {
+        return Module._b2js_world_get_contact_recycle_distance(handleValue(world, "world"));
+      },
+      setWorldMaximumLinearSpeed: function (world, value) {
+        Module._b2js_world_set_maximum_linear_speed(handleValue(world, "world"), Number(value));
+      },
+      getWorldMaximumLinearSpeed: function (world) {
+        return Module._b2js_world_get_maximum_linear_speed(handleValue(world, "world"));
+      },
+      enableWorldWarmStarting: function (world, enabled) {
+        Module._b2js_world_enable_warm_starting(handleValue(world, "world"), enabled ? 1 : 0);
+      },
+      isWorldWarmStartingEnabled: function (world) {
+        return !!Module._b2js_world_is_warm_starting_enabled(handleValue(world, "world"));
+      },
+      getWorldAwakeBodyCount: function (world) {
+        return Module._b2js_world_get_awake_body_count(handleValue(world, "world"));
+      },
+      enableWorldFrictionCallback: function (world, enabled) {
+        Module._b2js_world_enable_friction_callback(handleValue(world, "world"), enabled ? 1 : 0);
+      },
+      enableWorldRestitutionCallback: function (world, enabled) {
+        Module._b2js_world_enable_restitution_callback(handleValue(world, "world"), enabled ? 1 : 0);
+      },
+      clearFrictionMixRules: function () {
+        Module._b2js_clear_friction_mix_rules();
+      },
+      addFrictionMixRule: function (materialA, materialB, friction) {
+        return !!Module._b2js_add_friction_mix_rule(Number(materialA) >>> 0, Number(materialB) >>> 0, Number(friction));
+      },
+      clearRestitutionMixRules: function () {
+        Module._b2js_clear_restitution_mix_rules();
+      },
+      addRestitutionMixRule: function (materialA, materialB, restitution) {
+        return !!Module._b2js_add_restitution_mix_rule(Number(materialA) >>> 0, Number(materialB) >>> 0, Number(restitution));
+      },
+      castRayClosest: castRayClosest,
+      overlapAABB: overlapAABB,
+      getBodyEvents: getBodyEvents,
+      getContactEvents: getContactEvents,
+      getSensorEvents: getSensorEvents,
+      getJointEvents: getJointEvents,
       step: step,
       getBodyPosition: getBodyPosition,
       getBodyVelocity: getBodyVelocity,

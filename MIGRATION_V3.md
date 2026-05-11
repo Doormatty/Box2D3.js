@@ -13,8 +13,8 @@ This repository currently contains the old `box2d.js` port of Box2D v2.3.1. The 
 - A separate v3 wrapper path now exists and does not use the old WebIDL binder.
 - `build-v3.ps1` builds `build/Box2D_v3.1.1.js` and `build/Box2D_v3.1.1.wasm` with Emscripten.
 - `v3/box2d_v3_shim.c` provides a focused C shim with wasm-side handle tables for worlds, bodies, shapes, and joints.
-- `box2d.v3.js` exposes an initial ergonomic JavaScript wrapper over the shim.
-- `test-v3.js` verifies the first vertical slice by creating a world, ground body, dynamic box, stepping the simulation, and reading the body position and batched transform data.
+- `box2d.v3.js` exposes an ergonomic JavaScript wrapper over the shim for the current v3 target surface.
+- `test-v3.js` verifies the wrapper by creating worlds, bodies, shapes, distance joints, revolute joints, stepping simulations, and reading body/joint state.
 
 ## Important v3 Changes
 
@@ -53,7 +53,7 @@ Avoid:
 
 ## First Milestone API
 
-The first useful wrapper should prove a full vertical slice. This slice is now implemented in `box2d.v3.js` and covered by `test-v3.js`:
+The first useful wrapper should prove a full vertical slice. This slice is implemented in `box2d.v3.js` and covered by `test-v3.js`:
 
 ```js
 const b2 = await Box2D();
@@ -89,12 +89,20 @@ This confirms the important pieces:
 The current wrapper also includes initial support beyond the smoke test:
 
 - circle shapes
+- capsule shapes
 - segment shapes
+- chain shapes with segment handle reads
 - convex polygon shapes from JS vertex arrays
-- revolute joints with motors
+- distance joints, including length, spring, spring force range, limit, motor, and current force/length query APIs
+- revolute joints, including spring, target angle, limit, motor, angle, and motor torque query APIs
+- prismatic joints, wheel joints, motor joints, and filter joints
+- common joint APIs for type, direct destruction, wake, collide-connected, local frames, constraint tuning, thresholds, constraint force/torque, and separation reads
+- body control APIs for transforms, velocities, forces, impulses, awake/enabled/bullet flags, gravity scale, and damping
 - body velocity reads
 - body mass reads
 - batched body transform reads into `Float32Array`
+- shape filters with category/mask/group bits, sensors, contact/sensor/hit event flags, direct destruction, material properties, full surface material fields, AABB, point tests, and ray casts
+- world gravity get/set, world tuning, rule-based friction/restitution material mixing callbacks, closest ray casts, AABB overlap queries, and post-step body/contact/sensor/joint event reads
 
 ## Genetic Cars Target
 
@@ -106,6 +114,8 @@ The first real consumer is expected to be a remake of `red42/HTML5_Genetic_Cars`
 - polygon chassis shapes
 - circular wheels
 - revolute joints with motors
+- wheel joints for suspension-style wheels
+- full distance and revolute joint controls if a consumer wants springs, limits, motors, or runtime tuning
 - shape filters/group indexes
 - body mass
 - body position
@@ -208,6 +218,8 @@ Current implementation:
 - JavaScript wraps those integers in frozen typed handle objects such as `{ kind: "body", handle }`.
 - Destroying a world invalidates known body, shape, and joint slots for that world.
 - Destroying a body invalidates known shape and joint slots attached to that body.
+- Destroying a shape directly is supported through the JS wrapper and invalidates that shape slot.
+- Destroying a joint directly is supported through the JS wrapper and invalidates that joint slot.
 - Direct native ID packing with `WASM_BIGINT` is not currently used.
 
 ## Struct Handling
@@ -231,13 +243,13 @@ Default definition helpers such as `b2DefaultWorldDef`, `b2DefaultBodyDef`, `b2D
 
 ## Callbacks and Events
 
-Callbacks should be added after the basic simulation path works.
+Callbacks should be added only when a consumer needs callback-specific behavior.
 
-Priority order:
+Current order:
 
-1. No callbacks: create bodies/shapes/joints, step, read positions.
-2. Post-step events: body movement and contact/sensor events.
-3. Ray/overlap callbacks for queries.
+1. No callbacks: create bodies/shapes/joints, step, read positions. Implemented.
+2. Post-step events: body movement and contact/sensor events. Implemented through flat event reads after stepping.
+3. Ray/overlap queries. Implemented for closest ray casts and AABB overlap queries.
 4. Debug draw callbacks.
 5. Custom filter and pre-solve callbacks if a project needs them.
 
@@ -318,12 +330,43 @@ node test-v3.js
 node test-v3-browser.js
 ```
 
+Current benchmark command:
+
+```powershell
+node benchmark-v3.js
+```
+
+Browser benchmark page:
+
+```text
+benchmark-v3-browser.html
+```
+
 Latest verified results:
 
 ```text
 Box2D v3 tests passed: box at (-0.009, 1.000), chassis at (7.955, 1.047)
 Box2D v3 browser smoke test passed
 ```
+
+The Node test now also exercises the distance/revolute wrapper surface, body control APIs, shape filters/properties, closest ray casts, AABB overlap queries, and body/contact/sensor event reads. The printed summary intentionally remains short and only reports the original body positions.
+
+Latest benchmark results:
+
+```text
+config: repeats=5, warmupSteps=60, measuredSteps=300, pyramidRows=26, carWorlds=24
+v2 pyramid: median 0.856 ms/step
+v3 pyramid: median 0.092 ms/step
+v2 car fleet step only: median 0.062 ms/step
+v3 car fleet step only: median 0.416 ms/step
+v2 car fleet + reads: median 0.066 ms/step
+v3 car fleet + reads: median 0.424 ms/step
+v3 pyramid speedup vs v2: 9.32x
+v3 car fleet step-only speedup vs v2: 0.15x
+v3 car fleet + reads speedup vs v2: 0.16x
+```
+
+The initial benchmark result is mixed: v3 is much faster on a larger stacked-body workload, while the current wrapper is slower than the old v2 build on many tiny isolated car worlds. This suggests the car workload should be revisited once the first consumer settles its simulation model, especially around tiny-world stepping and per-frame state reads.
 
 ## Implementation Status
 
@@ -340,18 +383,31 @@ Completed:
 9. Accepted `build-v3.ps1` as the current main v3 build path.
 10. Added broader JS tests for circle shapes, polygon chassis shapes, terrain segments, revolute motor joints, body velocity, body mass, and batched transform reads.
 11. Added a small browser smoke test that verifies the generated module through a local HTTP server and headless browser.
+12. Added distance joint creation and full distance joint feature coverage in the JS wrapper: rest length, spring enable/tuning/force range, limits, motor enable/speed/force, current length, and motor force.
+13. Expanded revolute joint support beyond motors: local/world anchors, local frame angles/reference-angle support, spring enable/tuning/target angle, limits, motor state queries, angle, and motor torque.
+14. Added shared joint wrapper APIs for joint type, direct joint destruction, waking attached bodies, collide-connected, local frame set/get, constraint tuning, force/torque thresholds, constraint force/torque, and separation reads.
+15. Rebuilt `build/Box2D_v3.1.1.js` and `build/Box2D_v3.1.1.wasm` with the expanded shim exports.
+16. Added Node test coverage for distance/revolute joint features and re-verified the browser smoke test after rebuilding.
+17. Added `benchmark-v3.js` to compare the old v2 wasm build against the v3 wrapper on a pyramid workload and Genetic Cars-style car fleet workloads.
+18. Added `benchmark-v3-browser.html` for running the benchmark scenarios in a browser.
+19. Added body control APIs, shape filters/properties/sensors, direct shape destruction, closest ray casts, AABB overlap queries, and post-step body/contact/sensor event reads.
+20. Rebuilt `build/Box2D_v3.1.1.js` and `build/Box2D_v3.1.1.wasm` with the expanded body/shape/query/event shim exports.
+21. Added capsule shapes, chain shapes, joint event reads, and the P1 joint types: wheel, prismatic, motor, and filter.
+22. Added Node test coverage for all P1 wrapper concepts and rebuilt the generated v3 wasm artifacts.
 
 Still required:
 
-1. Add shape filter coverage beyond `groupIndex` if the car project needs category and mask bits.
-2. Add wheel-specific helper functions if the car project wants a higher-level helper than `createCircleShape` plus `createRevoluteJoint`.
-3. Add lifecycle APIs for destroying shapes and joints directly, if consumers need fine-grained cleanup without destroying bodies/worlds.
-4. Add post-step event support for body/contact/sensor events when the first consumer needs it.
-5. Add ray/overlap query support if needed for gameplay, terrain checks, or editor tools.
-6. Add debug draw support only after the runtime wrapper is stable.
-7. Add packaging decisions: CommonJS/ESM shape, npm package metadata if needed, browser loading examples, and generated artifact policy.
-8. Add performance benchmarks against the old v2 wasm build and against expected Genetic Cars workloads.
-9. Document the final supported wrapper API with examples once the first consumer stabilizes.
+1. Add packaging decisions: CommonJS/ESM shape, npm package metadata if needed, browser loading examples, and generated artifact policy.
+2. Document the final supported wrapper API with examples once the first consumer stabilizes.
+
+Future thoughts:
+
+1. Add weld joints if a consumer needs rigid or soft body assemblies.
+2. Add world counters/profile reads for benchmark and tuning pages.
+3. Add debug draw support only after the runtime wrapper is stable and a consumer needs visual physics diagnostics.
+4. Add custom filter and pre-solve callbacks only if a project needs callback-specific collision logic.
+5. Add shape casts and richer low-level collision helpers if editor tooling needs them.
+6. Revisit car-fleet benchmark performance after the first consumer clarifies whether it uses many tiny isolated worlds, fewer shared worlds, or a custom batch stepping path.
 
 ## Feasibility
 

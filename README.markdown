@@ -28,7 +28,12 @@ The v3 work now has a separate build path and does not use the old WebIDL binder
 .\build-v3.ps1
 node test-v3.js
 node test-v3-browser.js
+node benchmark-v3.js
 ```
+
+The browser benchmark page is [benchmark-v3-browser.html](benchmark-v3-browser.html). Serve the repository over HTTP and open that page so the browser can load the generated `.wasm` files.
+
+The V3 wrapper coverage matrix is [box2d-v3-wrapper-coverage.html](box2d-v3-wrapper-coverage.html).
 
 The wrapper entrypoint is [box2d.v3.js](box2d.v3.js):
 
@@ -47,7 +52,7 @@ b2.step(world, 1 / 60, 4);
 console.log(b2.getBodyPosition(body));
 ```
 
-The first exposed surface covers worlds, bodies, box/circle/segment/polygon shapes, revolute motor joints, body transforms, body velocity, body mass, and a batched transform read helper.
+The v3 wrapper currently covers worlds, world tuning, body creation/control, box/circle/capsule/segment/polygon/chain shapes, shape filters/sensors/materials/properties, rule-based friction/restitution material mixing callbacks, distance/revolute/prismatic/wheel/motor/filter joints, closest ray casts, AABB overlap queries, post-step body/contact/sensor/joint events, body transforms/velocity/mass, and a batched transform read helper.
 
 
 Details

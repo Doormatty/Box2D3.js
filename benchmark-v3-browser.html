@@ -1,0 +1,870 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Box2D JS/Wasm Benchmarks</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f6f7f9;
+        --ink: #20242a;
+        --muted: #616975;
+        --line: #d9dde4;
+        --panel: #ffffff;
+        --accent: #0969da;
+        --accent-strong: #034ea2;
+        --good: #1a7f37;
+        --warn: #9a6700;
+        --bad: #b42318;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        background: var(--bg);
+        color: var(--ink);
+        font-family: Arial, Helvetica, sans-serif;
+        margin: 0;
+      }
+
+      main {
+        margin: 0 auto;
+        max-width: 1180px;
+        padding: 24px;
+      }
+
+      header {
+        align-items: flex-start;
+        display: flex;
+        gap: 20px;
+        justify-content: space-between;
+        margin-bottom: 20px;
+      }
+
+      h1 {
+        font-size: 28px;
+        font-weight: 700;
+        letter-spacing: 0;
+        line-height: 1.2;
+        margin: 0 0 6px;
+      }
+
+      h2 {
+        font-size: 17px;
+        line-height: 1.25;
+        margin: 0 0 14px;
+      }
+
+      p {
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.45;
+        margin: 0;
+      }
+
+      button {
+        align-items: center;
+        background: var(--accent);
+        border: 1px solid var(--accent);
+        border-radius: 6px;
+        color: #ffffff;
+        cursor: pointer;
+        display: inline-flex;
+        font-size: 14px;
+        font-weight: 700;
+        gap: 8px;
+        min-height: 38px;
+        padding: 8px 14px;
+        white-space: nowrap;
+      }
+
+      button:hover {
+        background: var(--accent-strong);
+      }
+
+      button:disabled {
+        background: #8c959f;
+        border-color: #8c959f;
+        cursor: wait;
+      }
+
+      button svg {
+        flex: 0 0 auto;
+        height: 16px;
+        width: 16px;
+      }
+
+      input {
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        color: var(--ink);
+        font: inherit;
+        height: 36px;
+        padding: 6px 9px;
+        width: 100%;
+      }
+
+      label {
+        color: var(--muted);
+        display: grid;
+        font-size: 12px;
+        font-weight: 700;
+        gap: 6px;
+        letter-spacing: 0.02em;
+        text-transform: uppercase;
+      }
+
+      .layout {
+        display: grid;
+        gap: 18px;
+        grid-template-columns: 300px minmax(0, 1fr);
+      }
+
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 18px;
+      }
+
+      .controls {
+        display: grid;
+        gap: 14px;
+      }
+
+      .status {
+        align-items: center;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        color: var(--muted);
+        display: flex;
+        font-size: 14px;
+        gap: 8px;
+        min-height: 38px;
+        padding: 8px 10px;
+      }
+
+      .status.ready::before,
+      .status.running::before,
+      .status.done::before,
+      .status.fail::before {
+        border-radius: 50%;
+        content: "";
+        display: block;
+        height: 9px;
+        width: 9px;
+      }
+
+      .status.ready::before {
+        background: var(--muted);
+      }
+
+      .status.running::before {
+        background: var(--warn);
+      }
+
+      .status.done::before {
+        background: var(--good);
+      }
+
+      .status.fail::before {
+        background: var(--bad);
+      }
+
+      .table-wrap {
+        overflow-x: auto;
+      }
+
+      table {
+        border-collapse: collapse;
+        font-size: 14px;
+        min-width: 760px;
+        width: 100%;
+      }
+
+      th,
+      td {
+        border-bottom: 1px solid var(--line);
+        padding: 10px 8px;
+        text-align: right;
+        vertical-align: middle;
+        white-space: nowrap;
+      }
+
+      th:first-child,
+      td:first-child {
+        text-align: left;
+      }
+
+      th {
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        text-transform: uppercase;
+      }
+
+      tbody tr:last-child td {
+        border-bottom: 0;
+      }
+
+      .bar-cell {
+        min-width: 180px;
+        width: 24%;
+      }
+
+      .bar-track {
+        background: #edf0f4;
+        border-radius: 999px;
+        height: 8px;
+        overflow: hidden;
+      }
+
+      .bar {
+        background: var(--accent);
+        height: 100%;
+        min-width: 2px;
+      }
+
+      .summary {
+        display: grid;
+        gap: 10px;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        margin-top: 16px;
+      }
+
+      .metric {
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 12px;
+      }
+
+      .metric strong {
+        display: block;
+        font-size: 21px;
+        line-height: 1.2;
+      }
+
+      .metric span {
+        color: var(--muted);
+        display: block;
+        font-size: 12px;
+        margin-top: 4px;
+      }
+
+      pre {
+        background: #24292f;
+        border-radius: 8px;
+        color: #f6f8fa;
+        font-size: 12px;
+        line-height: 1.45;
+        margin: 16px 0 0;
+        max-height: 240px;
+        overflow: auto;
+        padding: 12px;
+        white-space: pre-wrap;
+      }
+
+      @media (max-width: 860px) {
+        main {
+          padding: 16px;
+        }
+
+        header,
+        .layout {
+          display: block;
+        }
+
+        header button {
+          margin-top: 14px;
+          width: 100%;
+          justify-content: center;
+        }
+
+        .layout > * + * {
+          margin-top: 16px;
+        }
+
+        .summary {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <div>
+          <h1>Box2D JS/Wasm Benchmarks</h1>
+          <p>Runs v2 and v3 benchmark scenarios in this browser using the generated wasm artifacts.</p>
+        </div>
+        <button id="run" type="button" title="Run benchmarks">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path fill="currentColor" d="M8 5v14l11-7z"></path>
+          </svg>
+          Run
+        </button>
+      </header>
+
+      <div class="layout">
+        <section class="panel">
+          <h2>Configuration</h2>
+          <div class="controls">
+            <label>
+              Repeats
+              <input id="repeats" type="number" min="1" max="20" step="1" value="5">
+            </label>
+            <label>
+              Warmup steps
+              <input id="warmupSteps" type="number" min="1" max="2000" step="1" value="60">
+            </label>
+            <label>
+              Measured steps
+              <input id="measuredSteps" type="number" min="1" max="5000" step="1" value="300">
+            </label>
+            <label>
+              Pyramid rows
+              <input id="pyramidRows" type="number" min="4" max="80" step="1" value="26">
+            </label>
+            <label>
+              Car worlds
+              <input id="carWorlds" type="number" min="1" max="200" step="1" value="24">
+            </label>
+            <div id="status" class="status ready">Ready</div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2>Results</h2>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Scenario</th>
+                  <th>Median</th>
+                  <th>Mean</th>
+                  <th>Min</th>
+                  <th>P95</th>
+                  <th>Max</th>
+                  <th class="bar-cell">Relative</th>
+                </tr>
+              </thead>
+              <tbody id="results">
+                <tr>
+                  <td colspan="7">No benchmark run yet.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="summary">
+            <div class="metric">
+              <strong id="pyramidRatio">-</strong>
+              <span>v3 pyramid speedup vs v2</span>
+            </div>
+            <div class="metric">
+              <strong id="carStepRatio">-</strong>
+              <span>v3 car step-only speedup vs v2</span>
+            </div>
+            <div class="metric">
+              <strong id="carReadRatio">-</strong>
+              <span>v3 car + reads speedup vs v2</span>
+            </div>
+          </div>
+
+          <pre id="log"></pre>
+        </section>
+      </div>
+    </main>
+
+    <script src="build/Box2D_v2.3.1_min.wasm.js"></script>
+    <script>
+      window.Box2DV2Factory = window.Box2D;
+    </script>
+    <script src="build/Box2D_v3.1.1.js"></script>
+    <script src="box2d.v3.js"></script>
+    <script>
+      (function () {
+        "use strict";
+
+        var v2Promise = null;
+        var v3Promise = null;
+
+        function intValue(id, fallback) {
+          var value = Number(document.getElementById(id).value);
+          return Number.isFinite(value) && value > 0 ? Math.floor(value) : fallback;
+        }
+
+        function readConfig() {
+          return {
+            repeats: intValue("repeats", 5),
+            warmupSteps: intValue("warmupSteps", 60),
+            measuredSteps: intValue("measuredSteps", 300),
+            pyramidRows: intValue("pyramidRows", 26),
+            carWorlds: intValue("carWorlds", 24),
+          };
+        }
+
+        function loadV2() {
+          if (!v2Promise) {
+            v2Promise = window.Box2DV2Factory({
+              locateFile: function (file) {
+                return file === "Box2D_v2.3.1_min.wasm.wasm" ? "build/" + file : file;
+              },
+              print: function () {},
+              printErr: function () {},
+            });
+          }
+
+          return v2Promise;
+        }
+
+        function loadV3() {
+          if (!v3Promise) {
+            v3Promise = window.Box2D();
+          }
+
+          return v3Promise;
+        }
+
+        function summarize(values) {
+          var sorted = values.slice().sort(function (a, b) {
+            return a - b;
+          });
+          var total = values.reduce(function (sum, value) {
+            return sum + value;
+          }, 0);
+
+          return {
+            min: sorted[0],
+            median: sorted[Math.floor(sorted.length / 2)],
+            mean: total / values.length,
+            p95: sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.95))],
+            max: sorted[sorted.length - 1],
+          };
+        }
+
+        function measureSteps(step, warmupSteps, measuredSteps) {
+          var i;
+          for (i = 0; i < warmupSteps; ++i) {
+            step();
+          }
+
+          var start = performance.now();
+          for (i = 0; i < measuredSteps; ++i) {
+            step();
+          }
+
+          return (performance.now() - start) / measuredSteps;
+        }
+
+        function createV2PyramidWorld(Box2D, config) {
+          var gravity = new Box2D.b2Vec2(0, -10);
+          var world = new Box2D.b2World(gravity);
+          var groundDef = new Box2D.b2BodyDef();
+          var ground = world.CreateBody(groundDef);
+          var groundShape = new Box2D.b2EdgeShape();
+          groundShape.Set(new Box2D.b2Vec2(-40, 0), new Box2D.b2Vec2(40, 0));
+          ground.CreateFixture(groundShape, 0);
+
+          var boxShape = new Box2D.b2PolygonShape();
+          boxShape.SetAsBox(0.5, 0.5);
+
+          var topBody = null;
+          var x = new Box2D.b2Vec2(-7, 0.75);
+          var y = new Box2D.b2Vec2();
+          var deltaX = new Box2D.b2Vec2(0.5625, 1);
+          var deltaY = new Box2D.b2Vec2(1.125, 0);
+
+          for (var i = 0; i < config.pyramidRows; ++i) {
+            y.set_x(x.get_x());
+            y.set_y(x.get_y());
+
+            for (var j = i; j < config.pyramidRows; ++j) {
+              var bodyDef = new Box2D.b2BodyDef();
+              bodyDef.set_type(Box2D.b2_dynamicBody);
+              bodyDef.set_position(y);
+              var body = world.CreateBody(bodyDef);
+              body.CreateFixture(boxShape, 5);
+              topBody = body;
+              y.op_add(deltaY);
+            }
+
+            x.op_add(deltaX);
+          }
+
+          return {
+            step: function () {
+              world.Step(1 / 60, 3, 3);
+            },
+            checksum: function () {
+              var position = topBody.GetPosition();
+              return position.get_x() + position.get_y();
+            },
+          };
+        }
+
+        function createV3PyramidWorld(b2, config) {
+          var world = b2.createWorld({ gravity: { x: 0, y: -10 } });
+          var ground = b2.createBody(world, { type: b2.staticBody });
+          b2.createSegmentShape(ground, { p1: { x: -40, y: 0 }, p2: { x: 40, y: 0 } });
+
+          var topBody = null;
+          var x = { x: -7, y: 0.75 };
+
+          for (var i = 0; i < config.pyramidRows; ++i) {
+            var y = { x: x.x, y: x.y };
+
+            for (var j = i; j < config.pyramidRows; ++j) {
+              var body = b2.createBody(world, { type: b2.dynamicBody, position: y });
+              b2.createBoxShape(body, { hx: 0.5, hy: 0.5, density: 5 });
+              topBody = body;
+              y = { x: y.x + 1.125, y: y.y };
+            }
+
+            x = { x: x.x + 0.5625, y: x.y + 1 };
+          }
+
+          return {
+            step: function () {
+              b2.step(world, 1 / 60, 4);
+            },
+            checksum: function () {
+              var position = b2.getBodyPosition(topBody);
+              return position.x + position.y;
+            },
+            destroy: function () {
+              b2.destroyWorld(world);
+            },
+          };
+        }
+
+        function createV2PolygonShape(Box2D, vertices) {
+          var shape = new Box2D.b2PolygonShape();
+          var buffer = Box2D._malloc(vertices.length * 8);
+
+          for (var i = 0; i < vertices.length; ++i) {
+            Box2D.HEAPF32[(buffer + i * 8) >> 2] = vertices[i].x;
+            Box2D.HEAPF32[(buffer + i * 8 + 4) >> 2] = vertices[i].y;
+          }
+
+          try {
+            shape.Set(Box2D.wrapPointer(buffer, Box2D.b2Vec2), vertices.length);
+          } finally {
+            Box2D._free(buffer);
+          }
+
+          return shape;
+        }
+
+        function createV2CarWorld(Box2D, readStateEachStep) {
+          var world = new Box2D.b2World(new Box2D.b2Vec2(0, -10));
+          var terrain = world.CreateBody(new Box2D.b2BodyDef());
+          var left = new Box2D.b2EdgeShape();
+          left.Set(new Box2D.b2Vec2(-12, 0), new Box2D.b2Vec2(0, 0.15));
+          terrain.CreateFixture(left, 0);
+          var right = new Box2D.b2EdgeShape();
+          right.Set(new Box2D.b2Vec2(0, 0.15), new Box2D.b2Vec2(12, 0));
+          terrain.CreateFixture(right, 0);
+
+          var chassisDef = new Box2D.b2BodyDef();
+          chassisDef.set_type(Box2D.b2_dynamicBody);
+          chassisDef.set_position(new Box2D.b2Vec2(0, 2.8));
+          var chassis = world.CreateBody(chassisDef);
+          var chassisShape = createV2PolygonShape(Box2D, [
+            { x: -1.4, y: -0.35 },
+            { x: 1.2, y: -0.35 },
+            { x: 1.45, y: 0.15 },
+            { x: -0.7, y: 0.45 },
+          ]);
+          chassis.CreateFixture(chassisShape, 1.2);
+
+          var wheelShape = new Box2D.b2CircleShape();
+          wheelShape.set_m_radius(0.35);
+
+          function createWheel(x) {
+            var wheelDef = new Box2D.b2BodyDef();
+            wheelDef.set_type(Box2D.b2_dynamicBody);
+            wheelDef.set_position(new Box2D.b2Vec2(x, 2.15));
+            var wheel = world.CreateBody(wheelDef);
+            wheel.CreateFixture(wheelShape, 1);
+
+            var jointDef = new Box2D.b2RevoluteJointDef();
+            jointDef.Initialize(chassis, wheel, new Box2D.b2Vec2(x, 2.15));
+            jointDef.set_enableMotor(true);
+            jointDef.set_motorSpeed(-8);
+            jointDef.set_maxMotorTorque(25);
+            jointDef.set_collideConnected(false);
+            world.CreateJoint(jointDef);
+
+            return wheel;
+          }
+
+          var wheelA = createWheel(-0.85);
+          var wheelB = createWheel(0.85);
+          var transforms = new Float32Array(9);
+
+          function readTransforms() {
+            var p0 = chassis.GetPosition();
+            var p1 = wheelA.GetPosition();
+            var p2 = wheelB.GetPosition();
+            transforms[0] = p0.get_x();
+            transforms[1] = p0.get_y();
+            transforms[3] = p1.get_x();
+            transforms[4] = p1.get_y();
+            transforms[6] = p2.get_x();
+            transforms[7] = p2.get_y();
+          }
+
+          return {
+            step: function () {
+              world.Step(1 / 60, 3, 3);
+              if (readStateEachStep) {
+                readTransforms();
+              }
+            },
+            checksum: function () {
+              readTransforms();
+              return transforms.reduce(function (sum, value) {
+                return sum + value;
+              }, 0);
+            },
+          };
+        }
+
+        function createV3CarWorld(b2, readStateEachStep) {
+          var world = b2.createWorld({ gravity: { x: 0, y: -10 } });
+          var terrain = b2.createBody(world, { type: b2.staticBody, position: { x: 0, y: 0 } });
+          b2.createSegmentShape(terrain, { p1: { x: -12, y: 0 }, p2: { x: 0, y: 0.15 } });
+          b2.createSegmentShape(terrain, { p1: { x: 0, y: 0.15 }, p2: { x: 12, y: 0 } });
+
+          var chassis = b2.createBody(world, { type: b2.dynamicBody, position: { x: 0, y: 2.8 } });
+          b2.createPolygonShape(chassis, {
+            vertices: [
+              { x: -1.4, y: -0.35 },
+              { x: 1.2, y: -0.35 },
+              { x: 1.45, y: 0.15 },
+              { x: -0.7, y: 0.45 },
+            ],
+            density: 1.2,
+            friction: 0.7,
+            groupIndex: -1,
+          });
+
+          function createWheel(x) {
+            var wheel = b2.createBody(world, { type: b2.dynamicBody, position: { x: x, y: 2.15 } });
+            b2.createCircleShape(wheel, { radius: 0.35, density: 1, friction: 1, groupIndex: -1 });
+            b2.createRevoluteJoint(world, chassis, wheel, {
+              anchor: { x: x, y: 2.15 },
+              enableMotor: true,
+              motorSpeed: -8,
+              maxMotorTorque: 25,
+              collideConnected: false,
+            });
+            return wheel;
+          }
+
+          var wheelA = createWheel(-0.85);
+          var wheelB = createWheel(0.85);
+          var bodies = [chassis, wheelA, wheelB];
+          var transforms = new Float32Array(bodies.length * 3);
+
+          return {
+            step: function () {
+              b2.step(world, 1 / 60, 4);
+              if (readStateEachStep) {
+                b2.readBodyTransforms(bodies, transforms);
+              }
+            },
+            checksum: function () {
+              b2.readBodyTransforms(bodies, transforms);
+              return transforms.reduce(function (sum, value) {
+                return sum + value;
+              }, 0);
+            },
+            destroy: function () {
+              b2.destroyWorld(world);
+            },
+          };
+        }
+
+        function createV2CarFleet(Box2D, config, readStateEachStep) {
+          var cars = [];
+          for (var i = 0; i < config.carWorlds; ++i) {
+            cars.push(createV2CarWorld(Box2D, readStateEachStep));
+          }
+
+          return {
+            step: function () {
+              for (var i = 0; i < cars.length; ++i) {
+                cars[i].step();
+              }
+            },
+            checksum: function () {
+              return cars.reduce(function (sum, car) {
+                return sum + car.checksum();
+              }, 0);
+            },
+          };
+        }
+
+        function createV3CarFleet(b2, config, readStateEachStep) {
+          var cars = [];
+          for (var i = 0; i < config.carWorlds; ++i) {
+            cars.push(createV3CarWorld(b2, readStateEachStep));
+          }
+
+          return {
+            step: function () {
+              for (var i = 0; i < cars.length; ++i) {
+                cars[i].step();
+              }
+            },
+            checksum: function () {
+              return cars.reduce(function (sum, car) {
+                return sum + car.checksum();
+              }, 0);
+            },
+            destroy: function () {
+              for (var i = 0; i < cars.length; ++i) {
+                cars[i].destroy();
+              }
+            },
+          };
+        }
+
+        function runBenchmark(name, createScenario, config) {
+          var results = [];
+          var checksum = 0;
+
+          for (var repeat = 0; repeat < config.repeats; ++repeat) {
+            setStatus("running", "Running " + name + " " + (repeat + 1) + "/" + config.repeats);
+            var scenario = createScenario();
+            results.push(measureSteps(scenario.step, config.warmupSteps, config.measuredSteps));
+            checksum += scenario.checksum();
+
+            if (scenario.destroy) {
+              scenario.destroy();
+            }
+          }
+
+          return {
+            name: name,
+            results: results,
+            stats: summarize(results),
+            checksum: checksum,
+          };
+        }
+
+        function formatMs(value) {
+          return value.toFixed(3);
+        }
+
+        function renderResults(benchmarks) {
+          var tbody = document.getElementById("results");
+          var maxMedian = benchmarks.reduce(function (max, benchmark) {
+            return Math.max(max, benchmark.stats.median);
+          }, 0);
+
+          tbody.innerHTML = benchmarks.map(function (benchmark) {
+            var stats = benchmark.stats;
+            var width = maxMedian > 0 ? Math.max(2, (stats.median / maxMedian) * 100) : 0;
+            return (
+              "<tr>" +
+              "<td>" + benchmark.name + "</td>" +
+              "<td>" + formatMs(stats.median) + "</td>" +
+              "<td>" + formatMs(stats.mean) + "</td>" +
+              "<td>" + formatMs(stats.min) + "</td>" +
+              "<td>" + formatMs(stats.p95) + "</td>" +
+              "<td>" + formatMs(stats.max) + "</td>" +
+              '<td class="bar-cell"><div class="bar-track"><div class="bar" style="width: ' + width.toFixed(1) + '%"></div></div></td>' +
+              "</tr>"
+            );
+          }).join("");
+
+          var byName = {};
+          benchmarks.forEach(function (benchmark) {
+            byName[benchmark.name] = benchmark;
+          });
+
+          var pyramidRatio = byName["v2 pyramid"].stats.median / byName["v3 pyramid"].stats.median;
+          var carStepRatio = byName["v2 car fleet step only"].stats.median / byName["v3 car fleet step only"].stats.median;
+          var carReadRatio = byName["v2 car fleet + reads"].stats.median / byName["v3 car fleet + reads"].stats.median;
+
+          document.getElementById("pyramidRatio").textContent = pyramidRatio.toFixed(2) + "x";
+          document.getElementById("carStepRatio").textContent = carStepRatio.toFixed(2) + "x";
+          document.getElementById("carReadRatio").textContent = carReadRatio.toFixed(2) + "x";
+
+          document.getElementById("log").textContent = benchmarks.map(function (benchmark) {
+            var stats = benchmark.stats;
+            return benchmark.name + ": median " + formatMs(stats.median) + " ms/step, mean " + formatMs(stats.mean);
+          }).join("\n");
+        }
+
+        function setStatus(kind, text) {
+          var status = document.getElementById("status");
+          status.className = "status " + kind;
+          status.textContent = text;
+        }
+
+        async function run() {
+          var button = document.getElementById("run");
+          var config = readConfig();
+          button.disabled = true;
+          setStatus("running", "Loading wasm modules");
+
+          try {
+            var Box2DV2 = await loadV2();
+            var b2v3 = await loadV3();
+            var benchmarks = [
+              runBenchmark("v2 pyramid", function () {
+                return createV2PyramidWorld(Box2DV2, config);
+              }, config),
+              runBenchmark("v3 pyramid", function () {
+                return createV3PyramidWorld(b2v3, config);
+              }, config),
+              runBenchmark("v2 car fleet step only", function () {
+                return createV2CarFleet(Box2DV2, config, false);
+              }, config),
+              runBenchmark("v3 car fleet step only", function () {
+                return createV3CarFleet(b2v3, config, false);
+              }, config),
+              runBenchmark("v2 car fleet + reads", function () {
+                return createV2CarFleet(Box2DV2, config, true);
+              }, config),
+              runBenchmark("v3 car fleet + reads", function () {
+                return createV3CarFleet(b2v3, config, true);
+              }, config),
+            ];
+
+            renderResults(benchmarks);
+            setStatus("done", "Finished");
+          } catch (error) {
+            setStatus("fail", "Failed");
+            document.getElementById("log").textContent = error && error.stack ? error.stack : String(error);
+            throw error;
+          } finally {
+            button.disabled = false;
+          }
+        }
+
+        document.getElementById("run").addEventListener("click", function () {
+          run().catch(function (error) {
+            console.error(error);
+          });
+        });
+
+        if (new URLSearchParams(window.location.search).get("autorun") === "1") {
+          setTimeout(function () {
+            run().catch(function (error) {
+              console.error(error);
+            });
+          }, 0);
+        }
+      })();
+    </script>
+  </body>
+</html>

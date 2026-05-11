@@ -1,0 +1,873 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Box2D v3 Wrapper Coverage Matrix</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f7f8fa;
+      --panel: #ffffff;
+      --ink: #1d2430;
+      --muted: #5e697a;
+      --line: #d9dee7;
+      --soft: #eef2f7;
+      --impl: #0f7a4f;
+      --partial: #9a6700;
+      --missing: #a52727;
+      --internal: #4e5f7f;
+      --low: #697386;
+      --code: #18202d;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font: 14px/1.45 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--ink);
+      background: var(--bg);
+    }
+
+    header {
+      padding: 28px 32px 20px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--line);
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 28px;
+      line-height: 1.15;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      margin: 30px 0 12px;
+      font-size: 18px;
+      letter-spacing: 0;
+    }
+
+    p {
+      margin: 0 0 10px;
+      max-width: 1120px;
+      color: var(--muted);
+    }
+
+    main {
+      padding: 24px 32px 44px;
+    }
+
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(150px, 1fr));
+      gap: 12px;
+      margin: 0 0 22px;
+      max-width: 1100px;
+    }
+
+    .metric {
+      min-height: 92px;
+      padding: 14px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    .metric strong {
+      display: block;
+      font-size: 26px;
+      line-height: 1;
+      margin-bottom: 8px;
+    }
+
+    .metric span {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 14px 0 0;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding: 3px 8px;
+      border-radius: 999px;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .implemented { background: var(--impl); }
+    .partial { background: var(--partial); }
+    .missing { background: var(--missing); }
+    .internal { background: var(--internal); }
+    .low { background: var(--low); }
+
+    .table-wrap {
+      overflow-x: auto;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    table {
+      width: 100%;
+      min-width: 1180px;
+      border-collapse: collapse;
+    }
+
+    th,
+    td {
+      padding: 11px 12px;
+      vertical-align: top;
+      border-bottom: 1px solid var(--line);
+    }
+
+    th {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      text-align: left;
+      font-size: 12px;
+      color: #344054;
+      background: var(--soft);
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    td:nth-child(1) {
+      width: 190px;
+      font-weight: 700;
+    }
+
+    td:nth-child(2) {
+      width: 118px;
+    }
+
+    td:nth-child(3),
+    td:nth-child(4) {
+      width: 260px;
+    }
+
+    td:nth-child(5) {
+      width: 310px;
+    }
+
+    td:nth-child(6) {
+      width: 260px;
+    }
+
+    code {
+      padding: 1px 4px;
+      border-radius: 4px;
+      color: var(--code);
+      background: #eef1f5;
+      font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+      font-size: 12px;
+    }
+
+    .codes {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+
+    .note {
+      color: var(--muted);
+    }
+
+    .priority {
+      display: inline-block;
+      min-width: 34px;
+      padding: 2px 6px;
+      border: 1px solid var(--line);
+      border-radius: 5px;
+      text-align: center;
+      font-size: 12px;
+      font-weight: 700;
+      background: #fff;
+    }
+
+    .callout {
+      margin: 22px 0;
+      padding: 14px 16px;
+      max-width: 1120px;
+      border: 1px solid var(--line);
+      border-left: 4px solid var(--internal);
+      border-radius: 8px;
+      background: var(--panel);
+    }
+
+    @media (max-width: 760px) {
+      header,
+      main {
+        padding-left: 16px;
+        padding-right: 16px;
+      }
+
+      .summary {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Box2D v3 Wrapper Coverage Matrix</h1>
+    <p>
+      Static inventory of Box2D v3.1.1 concepts that could be exposed through the JavaScript/Wasm wrapper, compared against the current wrapper surface in <code>box2d.v3.js</code>, <code>v3/box2d_v3_shim.c</code>, and <code>build-v3.ps1</code>.
+    </p>
+    <p>
+      Status is concept-level, not one-to-one native API parity. A concept is "partial" when useful wrapper behavior exists but some native functions, shape variants, callbacks, or diagnostics are still missing.
+    </p>
+    <div class="legend" aria-label="Coverage legend">
+      <span class="badge implemented">Implemented</span>
+      <span class="badge partial">Partial</span>
+      <span class="badge missing">Missing</span>
+      <span class="badge internal">Internal</span>
+      <span class="badge low">Low Priority</span>
+    </div>
+  </header>
+
+  <main>
+    <section class="summary" aria-label="Coverage summary">
+      <div class="metric">
+        <strong>22</strong>
+        <span>concept groups with usable wrapper coverage</span>
+      </div>
+      <div class="metric">
+        <strong>13</strong>
+        <span>groups with partial coverage or selected omissions</span>
+      </div>
+      <div class="metric">
+        <strong>8</strong>
+        <span>groups still missing or intentionally deferred</span>
+      </div>
+      <div class="metric">
+        <strong>4</strong>
+        <span>highest-value next targets: weld joints, world profiling/counters, debug draw, shape casts</span>
+      </div>
+    </section>
+
+    <div class="callout">
+      <strong>Current wrapper shape:</strong>
+      The wrapper is intentionally not a raw binding of every <code>B2_API</code> function. It uses small JS handle objects backed by wasm-side ID tables, exposes common gameplay/editor operations, and avoids callback-heavy APIs unless there is a clear consumer.
+    </div>
+
+    <h2>Primary Physics API</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>V3 concept</th>
+            <th>Status</th>
+            <th>Current JS wrapper coverage</th>
+            <th>Native V3 concepts involved</th>
+            <th>Detail / gaps</th>
+            <th>Porting priority</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>World lifecycle and stepping</td>
+            <td><span class="badge implemented">Implemented</span></td>
+            <td><div class="codes"><code>createWorld</code><code>destroyWorld</code><code>step</code></div></td>
+            <td><div class="codes"><code>b2CreateWorld</code><code>b2DestroyWorld</code><code>b2World_Step</code></div></td>
+            <td>Core simulation path exists. The wrapper fixes worker count to 1 for predictable wasm/browser behavior.</td>
+            <td><span class="priority">Done</span></td>
+          </tr>
+          <tr>
+            <td>World gravity</td>
+            <td><span class="badge implemented">Implemented</span></td>
+            <td><div class="codes"><code>setWorldGravity</code><code>getWorldGravity</code></div></td>
+            <td><div class="codes"><code>b2World_SetGravity</code><code>b2World_GetGravity</code></div></td>
+            <td>Runtime gravity updates and reads are exposed.</td>
+            <td><span class="priority">Done</span></td>
+          </tr>
+          <tr>
+            <td>World tuning</td>
+            <td><span class="badge implemented">Implemented</span></td>
+            <td><div class="codes"><code>enableWorldSleeping</code><code>enableWorldContinuous</code><code>setWorldContactTuning</code><code>setWorldMaximumLinearSpeed</code><code>enableWorldWarmStarting</code><code>getWorldAwakeBodyCount</code></div></td>
+            <td><div class="codes"><code>b2World_EnableSleeping</code><code>b2World_EnableContinuous</code><code>b2World_SetContactTuning</code><code>b2World_SetMaximumLinearSpeed</code><code>b2World_EnableWarmStarting</code></div></td>
+            <td>Sleep, continuous collision, restitution threshold, hit-event threshold, contact tuning, contact recycle distance, max linear speed, warm starting, and awake-body count are exposed. Contact tuning is set-only because Box2D has no public getter for those values.</td>
+            <td><span class="priority">Done</span></td>
+          </tr>
+          <tr>
+            <td>World profiling and counters</td>
+            <td><span class="badge missing">Missing</span></td>
+            <td><span class="note">None</span></td>
+            <td><div class="codes"><code>b2World_GetProfile</code><code>b2World_GetCounters</code><code>b2World_GetAwakeBodyCount</code><code>b2World_GetMaxCapacity</code></div></td>
+            <td>Good diagnostic surface for benchmark pages and tuning dashboards. Needs struct-copy helpers.</td>
+            <td><span class="priority">P2</span></td>
+          </tr>
+          <tr>
+            <td>World explosion</td>
+            <td><span class="badge missing">Missing</span></td>
+            <td><span class="note">None</span></td>
+            <td><div class="codes"><code>b2World_Explode</code><code>b2ExplosionDef</code></div></td>
+            <td>Useful gameplay primitive. Straightforward wrapper once shape filters and vector helpers are already available.</td>
+            <td><span class="priority">P3</span></td>
+          </tr>
+          <tr>
+            <td>World user data</td>
+            <td><span class="badge low">Low Priority</span></td>
+            <td><span class="note">Not exposed; JS should own metadata</span></td>
+            <td><div class="codes"><code>b2World_SetUserData</code><code>b2World_GetUserData</code></div></td>
+            <td>Native void pointers are not a natural JS API. A JS-side map keyed by wrapper handle is safer.</td>
+            <td><span class="priority">P4</span></td>
+          </tr>
+          <tr>
+            <td>Multithreading / workers</td>
+            <td><span class="badge missing">Missing</span></td>
+            <td><span class="note">Worker count forced to 1</span></td>
+            <td><div class="codes"><code>b2World_SetWorkerCount</code><code>b2World_GetWorkerCount</code><code>b2EnqueueTaskCallback</code><code>b2FinishTaskCallback</code></div></td>
+            <td>Browser wasm threads require additional build flags, SharedArrayBuffer constraints, and a task-system design. Not appropriate for the thin wrapper yet.</td>
+            <td><span class="priority">P4</span></td>
+          </tr>
+          <tr>
+            <td>Body creation and destruction</td>
+            <td><span class="badge implemented">Implemented</span></td>
+            <td><div class="codes"><code>createBody</code><code>destroyBody</code><code>staticBody</code><code>kinematicBody</code><code>dynamicBody</code></div></td>
+            <td><div class="codes"><code>b2CreateBody</code><code>b2DestroyBody</code><code>b2BodyDef</code><code>b2BodyType</code></div></td>
+            <td>Supports type, initial position, and initial angle. Other construction fields can be added without changing the public handle model.</td>
+            <td><span class="priority">Done</span></td>
+          </tr>
+          <tr>
+            <td>Body type</td>
+            <td><span class="badge implemented">Implemented</span></td>
+            <td><div class="codes"><code>getBodyType</code><code>setBodyType</code></div></td>
+            <td><div class="codes"><code>b2Body_GetType</code><code>b2Body_SetType</code></div></td>
+            <td>Runtime body type changes are exposed. Native call is expensive, matching Box2D guidance.</td>
+            <td><span class="priority">Done</span></td>
+          </tr>
+          <tr>
+            <td>Body transform and batched transform reads</td>
+            <td><span class="badge implemented">Implemented</span></td>
+            <td><div class="codes"><code>getBodyPosition</code><code>getBodyTransform</code><code>setBodyTransform</code><code>readBodyTransforms</code></div></td>
+            <td><div class="codes"><code>b2Body_GetPosition</code><code>b2Body_GetRotation</code><code>b2Body_GetTransform</code><code>b2Body_SetTransform</code></div></td>
+            <td>Batched reads are the preferred rendering/scoring path. Rotation is converted to an angle in JS-facing APIs.</td>
+            <td><span class="priority">Done</span></td>
+          </tr>
+          <tr>
+            <td>Body velocity</td>
+            <td><span class="badge implemented">Implemented</span></td>
+            <td><div class="codes"><code>getBodyVelocity</code><code>setBodyVelocity</code><code>setBodyLinearVelocity</code><code>setBodyAngularVelocity</code><code>getBodyAngularVelocity</code></div></td>
+            <td><div class="codes"><code>b2Body_GetLinearVelocity</code><code>b2Body_SetLinearVelocity</code><code>b2Body_GetAngularVelocity</code><code>b2Body_SetAngularVelocity</code></div></td>
+            <td>Linear and angular velocity are exposed directly.</td>
+            <td><span class="priority">Done</span></td>
+          </tr>
+          <tr>
+            <td>Body forces and impulses</td>
+            <td><span class="badge partial">Partial</span></td>
+            <td><div class="codes"><code>applyForce</code><code>applyForceToCenter</code><code>applyTorque</code><code>applyLinearImpulse</code><code>applyLinearImpulseToCenter</code><code>applyAngularImpulse</code></div></td>
+            <td><div class="codes"><code>b2Body_ApplyForce</code><code>b2Body_ApplyForceToCenter</code><code>b2Body_ApplyTorque</code><code>b2Body_ApplyLinearImpulse</code><code>b2Body_ClearForces</code></div></td>
+            <td>All common force/impulse application calls are present. <code>ClearForces</code> is not exposed yet.</td>
+            <td><span class="priority">P3</span></td>
+          </tr>
+          <tr>
+            <td>Body damping and gravity scale</td>
+            <td><span class="badge implemented">Implemented</span></td>
+            <td><div class="codes"><code>setBodyDamping</code><code>getBodyDamping</code><code>setBodyGravityScale</code><code>getBodyGravityScale</code></div></td>
+            <td><div class="codes"><code>b2Body_SetLinearDamping</code><code>b2Body_GetLinearDamping</code><code>b2Body_SetAngularDamping</code><code>b2Body_SetGravityScale</code></div></td>
+            <td>Useful for game feel and controller tuning.</td>
+            <td><span class="priority">Done</span></td>
+          </tr>
+          <tr>
+            <td>Body awake, enabled, and bullet flags</td>
+            <td><span class="badge partial">Partial</span></td>
+            <td><div class="codes"><code>setBodyAwake</code><code>isBodyAwake</code><code>setBodyEnabled</code><code>isBodyEnabled</code><code>setBodyBullet</code><code>isBodyBullet</code></div></td>
+            <td><div class="codes"><code>b2Body_SetAwake</code><code>b2Body_IsAwake</code><code>b2Body_Enable</code><code>b2Body_Disable</code><code>b2Body_SetBullet</code><code>b2Body_EnableSleep</code></div></td>
+            <td>Core flags are exposed. Per-body sleep enable, sleep threshold, wake touching, and contact/hit event bulk toggles are not exposed.</td>
+            <td><span class="priority">P2</span></td>
+          </tr>
+          <tr>
+            <td>Body mass and centers</td>
+            <td><span class="badge partial">Partial</span></td>
+            <td><div class="codes"><code>getBodyMass</code></div></td>
+            <td><div class="codes"><code>b2Body_GetMass</code><code>b2Body_GetRotationalInertia</code><code>b2Body_GetMassData</code><code>b2Body_SetMassData</code><code>b2Body_ApplyMassFromShapes</code><code>b2Body_GetWorldCenterOfMass</code></div></td>
+            <td>Mass read exists for scoring/validation. Full mass data, inertia, center-of-mass helpers, and mass overrides are still missing.</td>
+            <td><span class="priority">P2</span></td>
+          </tr>
+          <tr>
+            <td>Body coordinate helpers</td>
+            <td><span class="badge missing">Missing</span></td>
+            <td><span class="note">None</span></td>
+            <td><div class="codes"><code>b2Body_GetLocalPoint</code><code>b2Body_GetWorldPoint</code><code>b2Body_GetLocalVector</code><code>b2Body_GetWorldVector</code><code>b2Body_GetWorldPointVelocity</code></div></td>
+            <td>Useful for editor tools, anchors, and controllers. Some native calls are already used internally during joint creation.</td>
+            <td><span class="priority">P2</span></td>
+          </tr>
+          <tr>
+            <td>Body enumeration and contact data</td>
+            <td><span class="badge missing">Missing</span></td>
+            <td><span class="note">None</span></td>
+            <td><div class="codes"><code>b2Body_GetShapes</code><code>b2Body_GetJoints</code><code>b2Body_GetContactData</code><code>b2Body_ComputeAABB</code></div></td>
+            <td>The current design prefers JS-owned render/model state. Contact data may be useful later for detailed collision inspection beyond event summaries.</td>
+            <td><span class="priority">P3</span></td>
+          </tr>
+          <tr>
+            <td>Body names and user data</td>
+            <td><span class="badge low">Low Priority</span></td>
+            <td><span class="note">Not exposed</span></td>
+            <td><div class="codes"><code>b2Body_SetName</code><code>b2Body_GetName</code><code>b2Body_SetUserData</code><code>b2Body_GetUserData</code></div></td>
+            <td>Prefer JS-side metadata maps keyed by handles. Native names are mainly diagnostic.</td>
+            <td><span class="priority">P4</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2>Shapes, Materials, Queries, and Events</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>V3 concept</th>
+            <th>Status</th>
+            <th>Current JS wrapper coverage</th>
+            <th>Native V3 concepts involved</th>
+            <th>Detail / gaps</th>
+            <th>Porting priority</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Circle shapes</td>
+            <td><span class="badge implemented">Implemented</span></td>
+            <td><div class="codes"><code>createCircleShape</code><code>circleShape</code></div></td>
+            <td><div class="codes"><code>b2CreateCircleShape</code><code>b2Circle</code></div></td>
+            <td>Supports center, radius, density, friction, restitution, filters, sensors, and event flags.</td>
+            <td><span class="priority">Done</span></td>
+          </tr>
+          <tr>
+            <td>Segment shapes</td>
+            <td><span class="badge implemented">Implemented</span></td>
+            <td><div class="codes"><code>createSegmentShape</code><code>segmentShape</code></div></td>
+            <td><div class="codes"><code>b2CreateSegmentShape</code><code>b2Segment</code></div></td>
+            <td>Supports terrain-style two-sided segments with material/filter/event options.</td>
+            <td><span class="priority">Done</span></td>
+          </tr>
+          <tr>
+            <td>Box and convex polygon shapes</td>
+            <td><span class="badge implemented">Implemented</span></td>
+            <td><div class="codes"><code>createBoxShape</code><code>createPolygonShape</code><code>polygonShape</code></div></td>
+            <td><div class="codes"><code>b2MakeBox</code><code>b2ComputeHull</code><code>b2MakePolygon</code><code>b2CreatePolygonShape</code></div></td>
+            <td>Box helper and convex hull generation from JS vertex arrays are exposed. Polygons are limited by Box2D's <code>B2_MAX_POLYGON_VERTICES</code>.</td>
+            <td><span class="priority">Done</span></td>
+          </tr>
+          <tr>
+            <td>Capsule shapes</td>
+            <td><span class="badge implemented">Implemented</span></td>
+            <td><div class="codes"><code>createCapsuleShape</code><code>capsuleShape</code></div></td>
+            <td><div class="codes"><code>b2CreateCapsuleShape</code><code>b2Capsule</code></div></td>
+            <td>Supports two local capsule centers, radius, density, friction, restitution, filters, sensors, and event flags.</td>
+            <td><span class="priority">Done</span></td>
+          </tr>
+          <tr>
+            <td>Chain shapes</td>
+            <td><span class="badge implemented">Implemented</span></td>
+            <td><div class="codes"><code>createChain</code><code>destroyChain</code><code>getChainSegmentCount</code><code>getChainSegments</code><code>chainSegmentShape</code></div></td>
+            <td><div class="codes"><code>b2CreateChain</code><code>b2DestroyChain</code><code>b2ChainDef</code><code>b2Chain_GetSegments</code></div></td>
+            <td>Supports open/loop chains with a single material, filters, sensor events, and shape handles for generated chain segments. Per-segment materials are still not exposed.</td>
+            <td><span class="priority">Done</span></td>
+          </tr>
+          <tr>
+            <td>Rounded and offset polygon helpers</td>
+            <td><span class="badge missing">Missing</span></td>
+            <td><span class="note">None</span></td>
+            <td><div class="codes"><code>b2MakeRoundedBox</code><code>b2MakeOffsetBox</code><code>b2MakeOffsetRoundedBox</code><code>b2MakeOffsetPolygon</code></div></td>
+            <td>Useful ergonomics for editors and more accurate body geometry. Could be exposed as creation options rather than standalone geometry objects.</td>
+            <td><span class="priority">P2</span></td>
+          </tr>
+          <tr>
+            <td>Shape lifecycle</td>
+            <td><span class="badge implemented">Implemented</span></td>
+            <td><div class="codes"><code>destroyShape</code><code>getShapeType</code></div></td>
+            <td><div class="codes"><code>b2DestroyShape</code><code>b2Shape_GetType</code><code>b2Shape_IsValid</code></div></td>
+            <td>Destroy and type reads are exposed. Explicit validity checks are not exposed because invalid handles generally produce null/NaN/no-op behavior through the shim.</td>
+            <td><span class="priority">Done</span></td>
+          </tr>
+          <tr>
+            <td>Shape material basics</td>
+            <td><span class="badge implemented">Implemented</span></td>
+            <td><div class="codes"><code>setShapeDensity</code><code>getShapeDensity</code><code>setShapeFriction</code><code>getShapeFriction</code><code>setShapeRestitution</code><code>getShapeRestitution</code></div></td>
+            <td><div class="codes"><code>b2Shape_SetDensity</code><code>b2Shape_GetDensity</code><code>b2Shape_SetFriction</code><code>b2Shape_SetRestitution</code></div></td>
+            <td>Common material properties are covered.</td>
+            <td><span class="priority">Done</span></td>
+          </tr>
+          <tr>
+            <td>Surface material extras</td>
+            <td><span class="badge implemented">Implemented</span></td>
+            <td><div class="codes"><code>getShapeSurfaceMaterial</code><code>setShapeSurfaceMaterial</code><code>getShapeUserMaterial</code><code>setShapeUserMaterial</code><code>getChainSurfaceMaterial</code><code>setChainSurfaceMaterial</code></div></td>
+            <td><div class="codes"><code>b2SurfaceMaterial</code><code>b2Shape_SetSurfaceMaterial</code><code>b2Shape_GetSurfaceMaterial</code><code>rollingResistance</code><code>tangentSpeed</code><code>customColor</code><code>userMaterialId</code></div></td>
+            <td>Shape and chain surface materials expose friction, restitution, rolling resistance, tangent speed, user material ID, and custom debug color. Creation helpers also accept these fields directly or via <code>surfaceMaterial</code>/<code>material</code>. JS stores material IDs as 32-bit unsigned values even though Box2D stores 64-bit IDs.</td>
+            <td><span class="priority">Done</span></td>
+          </tr>
+          <tr>
+            <td>Shape filters</td>
+            <td><span class="badge implemented">Implemented</span></td>
+            <td><div class="codes"><code>setShapeFilter</code><code>getShapeFilter</code><code>filter</code><code>categoryBits</code><code>maskBits</code><code>groupIndex</code></div></td>
+            <td><div class="codes"><code>b2Filter</code><code>b2Shape_SetFilter</code><code>b2Shape_GetFilter</code></div></td>
+            <td>JS accepts direct fields or a nested <code>filter</code> object. Current wrapper uses 32-bit masks for JS ergonomics, while Box2D stores 64-bit masks.</td>
+            <td><span class="priority">Done</span></td>
+          </tr>
+          <tr>
+            <td>Shape sensors and event flags</td>
+            <td><span class="badge partial">Partial</span></td>
+            <td><div class="codes"><code>isShapeSensor</code><code>enableShapeSensorEvents</code><code>areShapeSensorEventsEnabled</code><code>enableShapeContactEvents</code><code>enableShapeHitEvents</code></div></td>
+            <td><div class="codes"><code>b2Shape_IsSensor</code><code>b2Shape_EnableSensorEvents</code><code>b2Shape_EnableContactEvents</code><code>b2Shape_EnableHitEvents</code><code>b2Shape_EnablePreSolveEvents</code></div></td>
+            <td>Sensor, contact, and hit event flags are exposed. Pre-solve events are not, because they require callback support and careful threading semantics.</td>
+            <td><span class="priority">P2</span></td>
+          </tr>
+          <tr>
+            <td>Shape queries</td>
+            <td><span class="badge partial">Partial</span></td>
+            <td><div class="codes"><code>testShapePoint</code><code>rayCastShape</code><code>getShapeAABB</code></div></td>
+            <td><div class="codes"><code>b2Shape_TestPoint</code><code>b2Shape_RayCast</code><code>b2Shape_GetAABB</code><code>b2Shape_GetClosestPoint</code></div></td>
+            <td>Point tests, direct ray casts, and AABB reads are present. Closest point, mass data, sensor overlap data, and contact data are missing.</td>
+            <td><span class="priority">P2</span></td>
+          </tr>
+          <tr>
+            <td>Shape geometry mutation and introspection</td>
+            <td><span class="badge missing">Missing</span></td>
+            <td><span class="note">None</span></td>
+            <td><div class="codes"><code>b2Shape_GetCircle</code><code>b2Shape_GetSegment</code><code>b2Shape_GetPolygon</code><code>b2Shape_SetCircle</code><code>b2Shape_SetPolygon</code></div></td>
+            <td>Not required for the current architecture because JS owns render/model geometry. Useful for editors that want Box2D as the authoritative shape store.</td>
+            <td><span class="priority">P3</span></td>
+          </tr>
+          <tr>
+            <td>World closest ray cast</td>
+            <td><span class="badge implemented">Implemented</span></td>
+            <td><div class="codes"><code>castRayClosest</code></div></td>
+            <td><div class="codes"><code>b2World_CastRayClosest</code><code>b2RayResult</code><code>b2QueryFilter</code></div></td>
+            <td>Returns shape handle, point, normal, fraction, and traversal counters.</td>
+            <td><span class="priority">Done</span></td>
+          </tr>
+          <tr>
+            <td>World callback ray cast</td>
+            <td><span class="badge missing">Missing</span></td>
+            <td><span class="note">None</span></td>
+            <td><div class="codes"><code>b2World_CastRay</code><code>b2CastResultFcn</code></div></td>
+            <td>Needed for collecting all hits, custom clipping, or ignore/continue logic. Requires callback or preallocated result collection design.</td>
+            <td><span class="priority">P2</span></td>
+          </tr>
+          <tr>
+            <td>World AABB overlap query</td>
+            <td><span class="badge implemented">Implemented</span></td>
+            <td><div class="codes"><code>overlapAABB</code></div></td>
+            <td><div class="codes"><code>b2World_OverlapAABB</code><code>b2OverlapResultFcn</code><code>b2QueryFilter</code></div></td>
+            <td>Wrapper fills a JS array of shape handles up to a caller-provided capacity. It avoids JS callbacks during traversal.</td>
+            <td><span class="priority">Done</span></td>
+          </tr>
+          <tr>
+            <td>World shape overlap and shape cast</td>
+            <td><span class="badge missing">Missing</span></td>
+            <td><span class="note">None</span></td>
+            <td><div class="codes"><code>b2World_OverlapShape</code><code>b2World_CastShape</code><code>b2ShapeProxy</code></div></td>
+            <td>Useful for swept collision, large projectile checks, placement tests, and editor tools. Needs shape proxy marshaling.</td>
+            <td><span class="priority">P2</span></td>
+          </tr>
+          <tr>
+            <td>Character mover helpers</td>
+            <td><span class="badge missing">Missing</span></td>
+            <td><span class="note">None</span></td>
+            <td><div class="codes"><code>b2World_CastMover</code><code>b2World_CollideMover</code><code>b2SolvePlanes</code><code>b2ClipVector</code></div></td>
+            <td>Strong candidate if the wrapper targets platformers or character controllers. Less relevant for vehicle evolution.</td>
+            <td><span class="priority">P3</span></td>
+          </tr>
+          <tr>
+            <td>Post-step body events</td>
+            <td><span class="badge implemented">Implemented</span></td>
+            <td><div class="codes"><code>getBodyEvents</code></div></td>
+            <td><div class="codes"><code>b2World_GetBodyEvents</code><code>b2BodyMoveEvent</code></div></td>
+            <td>Returns body handle, position, angle, and sleep transition flag. Useful as an alternative to polling every dynamic body.</td>
+            <td><span class="priority">Done</span></td>
+          </tr>
+          <tr>
+            <td>Post-step contact events</td>
+            <td><span class="badge implemented">Implemented</span></td>
+            <td><div class="codes"><code>getContactEvents</code></div></td>
+            <td><div class="codes"><code>b2World_GetContactEvents</code><code>b2ContactBeginTouchEvent</code><code>b2ContactEndTouchEvent</code><code>b2ContactHitEvent</code></div></td>
+            <td>Returns begin/end shape pairs and hit events with point, normal, and approach speed. It does not expose contact IDs or full manifolds.</td>
+            <td><span class="priority">Done</span></td>
+          </tr>
+          <tr>
+            <td>Post-step sensor events</td>
+            <td><span class="badge implemented">Implemented</span></td>
+            <td><div class="codes"><code>getSensorEvents</code></div></td>
+            <td><div class="codes"><code>b2World_GetSensorEvents</code><code>b2SensorBeginTouchEvent</code><code>b2SensorEndTouchEvent</code></div></td>
+            <td>Returns sensor and visitor shape handles for begin/end overlap.</td>
+            <td><span class="priority">Done</span></td>
+          </tr>
+          <tr>
+            <td>Post-step joint events</td>
+            <td><span class="badge implemented">Implemented</span></td>
+            <td><div class="codes"><code>getJointEvents</code></div></td>
+            <td><div class="codes"><code>b2World_GetJointEvents</code><code>b2JointEvent</code></div></td>
+            <td>Returns joint handles for awake joints over force/torque thresholds. Event payload does not include observed force or torque because native Box2D does not include it.</td>
+            <td><span class="priority">Done</span></td>
+          </tr>
+          <tr>
+            <td>Contact object API</td>
+            <td><span class="badge missing">Missing</span></td>
+            <td><span class="note">None</span></td>
+            <td><div class="codes"><code>b2Contact_IsValid</code><code>b2Contact_GetData</code><code>b2ContactData</code><code>b2Manifold</code></div></td>
+            <td>Needed for detailed contact manifold inspection. More complex than event summaries because manifold data has multiple points and transient contact IDs.</td>
+            <td><span class="priority">P3</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2>Joint API</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>V3 concept</th>
+            <th>Status</th>
+            <th>Current JS wrapper coverage</th>
+            <th>Native V3 concepts involved</th>
+            <th>Detail / gaps</th>
+            <th>Porting priority</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Joint base lifecycle and metadata</td>
+            <td><span class="badge partial">Partial</span></td>
+            <td><div class="codes"><code>destroyJoint</code><code>getJointType</code><code>wakeJointBodies</code><code>setJointCollideConnected</code><code>getJointCollideConnected</code></div></td>
+            <td><div class="codes"><code>b2DestroyJoint</code><code>b2Joint_GetType</code><code>b2Joint_WakeBodies</code><code>b2Joint_SetCollideConnected</code><code>b2Joint_GetBodyA</code><code>b2Joint_GetBodyB</code></div></td>
+            <td>Core lifecycle and type are exposed. Missing body/world getters and user data.</td>
+            <td><span class="priority">P3</span></td>
+          </tr>
+          <tr>
+            <td>Joint frames and constraint diagnostics</td>
+            <td><span class="badge implemented">Implemented</span></td>
+            <td><div class="codes"><code>setJointLocalFrameA</code><code>setJointLocalFrameB</code><code>getJointLocalFrameA</code><code>getJointLocalFrameB</code><code>setJointConstraintTuning</code><code>getJointConstraintTuning</code><code>getJointConstraintForce</code></div></td>
+            <td><div class="codes"><code>b2Joint_SetLocalFrameA</code><code>b2Joint_GetLocalFrameA</code><code>b2Joint_SetConstraintTuning</code><code>b2Joint_GetConstraintForce</code><code>b2Joint_GetConstraintTorque</code></div></td>
+            <td>Includes force/torque thresholds and linear/angular separation reads.</td>
+            <td><span class="priority">Done</span></td>
+          </tr>
+          <tr>
+            <td>Distance joint</td>
+            <td><span class="badge implemented">Implemented</span></td>
+            <td><div class="codes"><code>createDistanceJoint</code><code>setDistanceJointLength</code><code>enableDistanceJointSpring</code><code>setDistanceJointSpringForceRange</code><code>enableDistanceJointLimit</code><code>enableDistanceJointMotor</code><code>getDistanceJointMotorForce</code></div></td>
+            <td><div class="codes"><code>b2CreateDistanceJoint</code><code>b2DistanceJoint_SetLength</code><code>b2DistanceJoint_EnableSpring</code><code>b2DistanceJoint_SetLengthRange</code><code>b2DistanceJoint_EnableMotor</code></div></td>
+            <td>Full practical coverage: length, spring, force range, limit, motor, current length, motor force, and getters.</td>
+            <td><span class="priority">Done</span></td>
+          </tr>
+          <tr>
+            <td>Revolute joint</td>
+            <td><span class="badge implemented">Implemented</span></td>
+            <td><div class="codes"><code>createRevoluteJoint</code><code>setRevoluteJointMotor</code><code>enableRevoluteJointSpring</code><code>setRevoluteJointTargetAngle</code><code>enableRevoluteJointLimit</code><code>setRevoluteJointLimits</code><code>getRevoluteJointMotorTorque</code></div></td>
+            <td><div class="codes"><code>b2CreateRevoluteJoint</code><code>b2RevoluteJoint_EnableSpring</code><code>b2RevoluteJoint_SetTargetAngle</code><code>b2RevoluteJoint_EnableLimit</code><code>b2RevoluteJoint_EnableMotor</code></div></td>
+            <td>Full practical coverage for hinge/motor/spring/limit workflows.</td>
+            <td><span class="priority">Done</span></td>
+          </tr>
+          <tr>
+            <td>Wheel joint</td>
+            <td><span class="badge implemented">Implemented</span></td>
+            <td><div class="codes"><code>createWheelJoint</code><code>enableWheelJointSpring</code><code>setWheelJointLimits</code><code>enableWheelJointMotor</code><code>getWheelJointMotorTorque</code></div></td>
+            <td><div class="codes"><code>b2CreateWheelJoint</code><code>b2WheelJoint_EnableSpring</code><code>b2WheelJoint_EnableLimit</code><code>b2WheelJoint_EnableMotor</code></div></td>
+            <td>Practical coverage for suspension spring/damper, translation limits, rotational motor, motor torque, and getters/setters.</td>
+            <td><span class="priority">Done</span></td>
+          </tr>
+          <tr>
+            <td>Prismatic joint</td>
+            <td><span class="badge implemented">Implemented</span></td>
+            <td><div class="codes"><code>createPrismaticJoint</code><code>enablePrismaticJointSpring</code><code>setPrismaticJointTargetTranslation</code><code>setPrismaticJointLimits</code><code>enablePrismaticJointMotor</code></div></td>
+            <td><div class="codes"><code>b2CreatePrismaticJoint</code><code>b2PrismaticJoint_EnableSpring</code><code>b2PrismaticJoint_EnableLimit</code><code>b2PrismaticJoint_EnableMotor</code></div></td>
+            <td>Practical coverage for spring target/tuning, translation limits, linear motor, translation/speed reads, motor force, and getters/setters.</td>
+            <td><span class="priority">Done</span></td>
+          </tr>
+          <tr>
+            <td>Motor joint</td>
+            <td><span class="badge implemented">Implemented</span></td>
+            <td><div class="codes"><code>createMotorJoint</code><code>setMotorJointLinearVelocity</code><code>setMotorJointAngularVelocity</code><code>setMotorJointLinearHertz</code><code>setMotorJointMaxSpringForce</code></div></td>
+            <td><div class="codes"><code>b2CreateMotorJoint</code><code>b2MotorJoint_SetLinearVelocity</code><code>b2MotorJoint_SetAngularVelocity</code><code>b2MotorJoint_SetMaxSpringForce</code></div></td>
+            <td>Full practical coverage for linear/angular velocity control, force/torque limits, linear/angular spring tuning, and spring force/torque limits.</td>
+            <td><span class="priority">Done</span></td>
+          </tr>
+          <tr>
+            <td>Weld joint</td>
+            <td><span class="badge missing">Missing</span></td>
+            <td><div class="codes"><code>weldJoint</code> enum only</div></td>
+            <td><div class="codes"><code>b2CreateWeldJoint</code><code>b2WeldJoint_SetLinearHertz</code><code>b2WeldJoint_SetAngularHertz</code></div></td>
+            <td>Useful for compound assemblies and destructible structures. Small API surface.</td>
+            <td><span class="priority">P2</span></td>
+          </tr>
+          <tr>
+            <td>Filter joint</td>
+            <td><span class="badge implemented">Implemented</span></td>
+            <td><div class="codes"><code>createFilterJoint</code><code>filterJoint</code></div></td>
+            <td><div class="codes"><code>b2CreateFilterJoint</code></div></td>
+            <td>Constructor is exposed. This joint has no additional type-specific native setters/getters.</td>
+            <td><span class="priority">Done</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2>Low-Level Collision, Math, Debugging, and Infrastructure</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>V3 concept</th>
+            <th>Status</th>
+            <th>Current JS wrapper coverage</th>
+            <th>Native V3 concepts involved</th>
+            <th>Detail / gaps</th>
+            <th>Porting priority</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>ID handling</td>
+            <td><span class="badge internal">Internal</span></td>
+            <td><div class="codes"><code>{ kind, handle }</code> objects</div></td>
+            <td><div class="codes"><code>b2WorldId</code><code>b2BodyId</code><code>b2ShapeId</code><code>b2JointId</code><code>b2StoreBodyId</code></div></td>
+            <td>Native IDs are stored in wasm-side handle tables. JS gets frozen typed handle objects, avoiding raw 64-bit ID exposure.</td>
+            <td><span class="priority">Done</span></td>
+          </tr>
+          <tr>
+            <td>Default definition helpers</td>
+            <td><span class="badge internal">Internal</span></td>
+            <td><span class="note">Used by shim; not surfaced directly</span></td>
+            <td><div class="codes"><code>b2DefaultWorldDef</code><code>b2DefaultBodyDef</code><code>b2DefaultShapeDef</code><code>b2DefaultDistanceJointDef</code></div></td>
+            <td>The shim initializes native definitions correctly and maps JS option objects onto selected fields. Direct definition structs are not exposed.</td>
+            <td><span class="priority">Done</span></td>
+          </tr>
+          <tr>
+            <td>Geometry helper functions</td>
+            <td><span class="badge partial">Partial</span></td>
+            <td><div class="codes"><code>createBoxShape</code><code>createPolygonShape</code> use helpers internally</div></td>
+            <td><div class="codes"><code>b2ComputeHull</code><code>b2MakePolygon</code><code>b2MakeBox</code><code>b2TransformPolygon</code></div></td>
+            <td>Native hull and box helpers are used internally. Standalone geometry APIs are not exposed to JS.</td>
+            <td><span class="priority">P3</span></td>
+          </tr>
+          <tr>
+            <td>Standalone mass and AABB computations</td>
+            <td><span class="badge missing">Missing</span></td>
+            <td><span class="note">None</span></td>
+            <td><div class="codes"><code>b2ComputeCircleMass</code><code>b2ComputeCapsuleMass</code><code>b2ComputePolygonMass</code><code>b2ComputeCircleAABB</code></div></td>
+            <td>Useful for offline/editor calculations without creating bodies. Needs shape object marshaling or ergonomic JS helpers.</td>
+            <td><span class="priority">P3</span></td>
+          </tr>
+          <tr>
+            <td>Standalone point/ray/shape casts</td>
+            <td><span class="badge missing">Missing</span></td>
+            <td><span class="note">World/attached-shape ray casts only</span></td>
+            <td><div class="codes"><code>b2PointInCircle</code><code>b2RayCastPolygon</code><code>b2ShapeCastCircle</code><code>b2ShapeCastPolygon</code></div></td>
+            <td>Could be useful for pure geometry tests, but world/shape APIs cover most gameplay cases.</td>
+            <td><span class="priority">P3</span></td>
+          </tr>
+          <tr>
+            <td>Distance, GJK, and time of impact</td>
+            <td><span class="badge missing">Missing</span></td>
+            <td><span class="note">None</span></td>
+            <td><div class="codes"><code>b2ShapeDistance</code><code>b2ShapeCast</code><code>b2TimeOfImpact</code><code>b2MakeProxy</code><code>b2SegmentDistance</code></div></td>
+            <td>Advanced collision prediction and editor tooling. Requires proxy structs and richer result marshaling.</td>
+            <td><span class="priority">P3</span></td>
+          </tr>
+          <tr>
+            <td>Direct collision manifolds</td>
+            <td><span class="badge missing">Missing</span></td>
+            <td><span class="note">None</span></td>
+            <td><div class="codes"><code>b2CollideCircles</code><code>b2CollideCapsules</code><code>b2CollidePolygons</code><code>b2Manifold</code></div></td>
+            <td>Useful for diagnostics and custom collision tests, but not needed for ordinary simulation.</td>
+            <td><span class="priority">P4</span></td>
+          </tr>
+          <tr>
+            <td>Dynamic tree</td>
+            <td><span class="badge missing">Missing</span></td>
+            <td><span class="note">None</span></td>
+            <td><div class="codes"><code>b2DynamicTree_Create</code><code>b2DynamicTree_Query</code><code>b2DynamicTree_RayCast</code><code>b2DynamicTree_Rebuild</code></div></td>
+            <td>Standalone broad-phase data structure. Usually application-specific; most users can rely on world queries instead.</td>
+            <td><span class="priority">P4</span></td>
+          </tr>
+          <tr>
+            <td>Debug draw</td>
+            <td><span class="badge missing">Missing</span></td>
+            <td><span class="note">None</span></td>
+            <td><div class="codes"><code>b2World_Draw</code><code>b2DebugDraw</code><code>b2DefaultDebugDraw</code><code>b2HexColor</code></div></td>
+            <td>Requires callback trampolines or a wasm-side draw command buffer. High value for visual diagnostics, but not needed for headless Genetic Cars scoring.</td>
+            <td><span class="priority">P2</span></td>
+          </tr>
+          <tr>
+            <td>Custom filter and pre-solve callbacks</td>
+            <td><span class="badge missing">Missing</span></td>
+            <td><span class="note">None</span></td>
+            <td><div class="codes"><code>b2World_SetCustomFilterCallback</code><code>b2World_SetPreSolveCallback</code><code>b2CustomFilterFcn</code><code>b2PreSolveFcn</code></div></td>
+            <td>Powerful but callback-heavy. Box2D warns these must be thread-safe and should not mutate world state.</td>
+            <td><span class="priority">P3</span></td>
+          </tr>
+          <tr>
+            <td>Friction/restitution mixing callbacks</td>
+            <td><span class="badge partial">Partial</span></td>
+            <td><div class="codes"><code>enableWorldFrictionCallback</code><code>enableWorldRestitutionCallback</code><code>addFrictionMixRule</code><code>addRestitutionMixRule</code><code>clearFrictionMixRules</code><code>clearRestitutionMixRules</code></div></td>
+            <td><div class="codes"><code>b2World_SetFrictionCallback</code><code>b2World_SetRestitutionCallback</code><code>b2FrictionCallback</code><code>b2RestitutionCallback</code></div></td>
+            <td>Material-pair rules are backed by native callbacks, so worlds can override friction or restitution mixes for specific user material IDs. This intentionally does not expose arbitrary JS functions because Box2D callbacks have no context pointer and may run from worker threads.</td>
+            <td><span class="priority">P2</span></td>
+          </tr>
+          <tr>
+            <td>Math utility functions</td>
+            <td><span class="badge internal">Internal</span></td>
+            <td><span class="note">JS uses plain objects and numbers</span></td>
+            <td><div class="codes"><code>b2Atan2</code><code>b2ComputeCosSin</code><code>b2MakeRot</code><code>b2TransformPoint</code><code>b2SpringDamper</code></div></td>
+            <td>Some helpers are used in the shim. Most vector math is cheaper and simpler in JS unless exact Box2D behavior is needed.</td>
+            <td><span class="priority">P4</span></td>
+          </tr>
+          <tr>
+            <td>Validation helpers</td>
+            <td><span class="badge internal">Internal</span></td>
+            <td><span class="note">Shim validates inputs before native calls</span></td>
+            <td><div class="codes"><code>b2IsValidFloat</code><code>b2IsValidVec2</code><code>b2IsValidTransform</code><code>b2ValidateHull</code></div></td>
+            <td>JS callers currently get failed creation or no-op behavior. Public validation APIs could help editor UI validation later.</td>
+            <td><span class="priority">P4</span></td>
+          </tr>
+          <tr>
+            <td>Length unit scaling</td>
+            <td><span class="badge missing">Missing</span></td>
+            <td><span class="note">None</span></td>
+            <td><div class="codes"><code>b2SetLengthUnitsPerMeter</code><code>b2GetLengthUnitsPerMeter</code></div></td>
+            <td>Global setting that changes constants. Should be used carefully and probably only before creating worlds.</td>
+            <td><span class="priority">P4</span></td>
+          </tr>
+          <tr>
+            <td>Allocator, logging, assert hooks</td>
+            <td><span class="badge low">Low Priority</span></td>
+            <td><span class="note">None</span></td>
+            <td><div class="codes"><code>b2SetAllocator</code><code>b2SetLogFcn</code><code>b2SetAssertFcn</code><code>b2GetByteCount</code></div></td>
+            <td>Mostly engine integration infrastructure. Direct JS callbacks would add complexity and little benefit for the current wrapper.</td>
+            <td><span class="priority">P4</span></td>
+          </tr>
+          <tr>
+            <td>Timer, yield, hash, version</td>
+            <td><span class="badge missing">Missing</span></td>
+            <td><span class="note">None</span></td>
+            <td><div class="codes"><code>b2GetVersion</code><code>b2GetTicks</code><code>b2GetMilliseconds</code><code>b2Yield</code><code>b2Hash</code></div></td>
+            <td><code>b2GetVersion</code> is worth exposing for diagnostics. Timer/hash/yield are low value for normal JS consumers.</td>
+            <td><span class="priority">P3</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+</body>
+</html>
