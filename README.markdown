@@ -14,10 +14,10 @@ box2d.js is zlib licensed, just like Box2D.
 
 Discussion takes place on IRC at #emscripten on Mozilla's server (irc.mozilla.org)
 
-Box2D v3.1.1 porting notes
----------------------------
+Box2D v3 porting notes
+----------------------
 
-This repository is being evaluated for a Box2D v3.1.1 JS/Wasm port. The v3 port is not expected to preserve the old v2 WebIDL API exactly. See [MIGRATION_V3.md](MIGRATION_V3.md) for the current migration notes, implementation direction, and Genetic Cars target use case.
+This repository is being evaluated for a Box2D v3 JS/Wasm port. The v3 source is pinned as a `vendor/box2d` submodule so builds are reproducible even when tracking upstream beyond a released tag. The v3 port is not expected to preserve the old v2 WebIDL API exactly. See [MIGRATION_V3.md](MIGRATION_V3.md) for the current migration notes, implementation direction, and Genetic Cars target use case.
 
 Initial v3 wrapper
 ------------------

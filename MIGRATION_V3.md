@@ -1,6 +1,6 @@
-# Box2D v3.1.1 JS/Wasm Migration Notes
+# Box2D v3 JS/Wasm Migration Notes
 
-This repository currently contains the old `box2d.js` port of Box2D v2.3.1. The goal is not to preserve the old API exactly. The goal is to build a practical Box2D v3.1.1 wasm package that can be used by upcoming browser projects, starting with a remake of `HTML5_Genetic_Cars`.
+This repository currently contains the old `box2d.js` port of Box2D v2.3.1. The goal is not to preserve the old API exactly. The goal is to build a practical Box2D v3 wasm package that can be used by upcoming browser projects, starting with a remake of `HTML5_Genetic_Cars`.
 
 ## Current State
 
@@ -8,8 +8,9 @@ This repository currently contains the old `box2d.js` port of Box2D v2.3.1. The 
 - The existing JS API is generated with Emscripten's WebIDL binder from `Box2D_v2.3.1.idl`.
 - The current `Makefile` is C++/WebIDL oriented and lists individual v2 `.cpp` files.
 - Existing demos and helpers assume v2 concepts such as C++ classes, fixtures, and body fixture traversal.
-- Box2D v3.1.1 is present under `Box2D_v3.1.1`.
-- Box2D v3.1.1 already has CMake support and Emscripten-specific build handling.
+- Box2D v3 source is present as a pinned submodule under `vendor/box2d`.
+- The current pin tracks upstream after v3.1.1 rather than the `v3.1.1` release tag because the shim uses newer upstream APIs.
+- Box2D v3 already has CMake support and Emscripten-specific build handling.
 - A separate v3 wrapper path now exists and does not use the old WebIDL binder.
 - `build-v3.ps1` builds `build/Box2D_v3.1.1.js` and `build/Box2D_v3.1.1.wasm` with Emscripten.
 - `v3/box2d_v3_shim.c` provides a focused C shim with wasm-side handle tables for worlds, bodies, shapes, and joints.
@@ -462,7 +463,7 @@ C:\Users\matt\AppData\Local\Microsoft\WinGet\Packages\Ninja-build.Ninja_Microsof
 Until Codex is restarted and picks up the refreshed `PATH`, use this absolute Ninja path in CMake commands:
 
 ```text
-emcmake cmake -S Box2D_v3.1.1 -B build-v3-wasm -G Ninja -DCMAKE_MAKE_PROGRAM=C:\Users\matt\AppData\Local\Microsoft\WinGet\Packages\Ninja-build.Ninja_Microsoft.Winget.Source_8wekyb3d8bbwe\ninja.exe -DBOX2D_UNIT_TESTS=OFF -DBOX2D_SAMPLES=OFF
+emcmake cmake -S vendor/box2d -B build-v3-wasm -G Ninja -DCMAKE_MAKE_PROGRAM=C:\Users\matt\AppData\Local\Microsoft\WinGet\Packages\Ninja-build.Ninja_Microsoft.Winget.Source_8wekyb3d8bbwe\ninja.exe -DBOX2D_UNIT_TESTS=OFF -DBOX2D_SAMPLES=OFF
 cmake --build build-v3-wasm
 ```
 

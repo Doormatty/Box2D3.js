@@ -2,7 +2,7 @@ $ErrorActionPreference = "Stop"
 
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $buildDir = Join-Path $root "build"
-$box2dDir = Join-Path $root "Box2D_v3.1.1"
+$box2dDir = Join-Path $root "vendor\box2d"
 $emsdkEnv = "C:\Users\matt\emsdk\emsdk_env.bat"
 $output = Join-Path $buildDir "Box2D_v3.1.1.js"
 $responseFile = Join-Path $buildDir "box2d-v3-emcc.rsp"
