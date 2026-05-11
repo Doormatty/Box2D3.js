@@ -171,11 +171,5 @@ declare namespace Box2DWireframe {
   ): void;
 }
 
-declare const Box2DWireframe: {
-  createWireframe: typeof Box2DWireframe.createWireframe;
-  convexHull: typeof Box2DWireframe.convexHull;
-  drawWireframes: typeof Box2DWireframe.drawWireframes;
-};
-
 export = Box2DWireframe;
 export as namespace Box2DWireframe;

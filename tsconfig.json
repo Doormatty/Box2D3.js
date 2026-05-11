@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "noEmit": true,
+    "strict": true,
+    "target": "ES2020",
+    "module": "Node16",
+    "moduleResolution": "Node16",
+    "skipLibCheck": false
+  },
+  "files": [
+    "box2d.v3.d.ts",
+    "box2d.v3.wireframe.d.ts",
+    "test-types.ts"
+  ]
+}

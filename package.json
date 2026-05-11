@@ -58,7 +58,8 @@
   "scripts": {
     "build": "powershell -ExecutionPolicy Bypass -File ./build-v3.ps1",
     "test": "node test-v3.js && node test-v3-browser.js && node test-v3-wireframe.js && node test-v3-browser.js test-v3-wireframe-browser.html \"Box2D v3 wireframe browser smoke test passed\"",
+    "test:types": "tsc --noEmit",
     "pack:check": "npm pack --dry-run",
-    "prepublishOnly": "npm run build && npm test && npm run pack:check"
+    "prepublishOnly": "npm run build && npm test && npm run test:types && npm run pack:check"
   }
 }
