@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Box2D v3 Wireframe Browser Smoke Test</title>
+    <style>
+      body {
+        color: #1b1f24;
+        font-family: system-ui, sans-serif;
+        margin: 2rem;
+      }
+
+      canvas {
+        border: 1px solid #d0d7de;
+        display: block;
+        margin: 1rem 0;
+      }
+
+      #status {
+        font-weight: 700;
+      }
+
+      #details {
+        white-space: pre-wrap;
+      }
+
+      .pass {
+        color: #137333;
+      }
+
+      .fail {
+        color: #b3261e;
+      }
+    </style>
+  </head>
+  <body>
+    <p id="status">Running Box2D v3 wireframe browser smoke test...</p>
+    <canvas id="canvas" width="640" height="360"></canvas>
+    <pre id="details"></pre>
+
+    <script src="build/Box2D_v3.1.1.js"></script>
+    <script src="box2d.v3.js"></script>
+    <script src="box2d.v3.wireframe.js"></script>
+    <script>
+      function assert(condition, message) {
+        if (!condition) {
+          throw new Error(message);
+        }
+      }
+
+      function stepWorld(b2, world, count) {
+        for (var i = 0; i < count; ++i) {
+          b2.step(world, 1 / 60, 4);
+        }
+      }
+
+      function countDrawnPixels(ctx, width, height) {
+        var data = ctx.getImageData(0, 0, width, height).data;
+        var count = 0;
+        for (var i = 0; i < data.length; i += 4) {
+          if (data[i + 3] !== 0 && (data[i] !== 255 || data[i + 1] !== 255 || data[i + 2] !== 255)) {
+            count += 1;
+          }
+        }
+        return count;
+      }
+
+      (async function run() {
+        var b2 = await Box2D();
+        var wire = Box2DWireframe.createWireframe(b2);
+        var world = b2.createWorld({ gravity: { x: 0, y: -10 } });
+        var canvas = document.getElementById("canvas");
+        var ctx = canvas.getContext("2d");
+
+        wire.createWireChain(world, {
+          id: "terrain",
+          vertices: [
+            { x: -8, y: 0 },
+            { x: -4, y: 0.2 },
+            { x: 0, y: 0 },
+            { x: 4, y: 0.2 },
+            { x: 8, y: 0 },
+          ],
+          friction: 0.8,
+          style: { stroke: "#57606a", lineWidth: 3 },
+        });
+
+        wire.createWirePolygon(world, {
+          id: "chassis",
+          type: b2.dynamicBody,
+          position: { x: -0.8, y: 3 },
+          vertices: [
+            { x: -1.1, y: -0.25 },
+            { x: 1.0, y: -0.25 },
+            { x: 1.2, y: 0.25 },
+            { x: -0.7, y: 0.45 },
+          ],
+          density: 1.2,
+          friction: 0.7,
+          style: { stroke: "#0969da", lineWidth: 2 },
+        });
+
+        wire.createWireCircle(world, {
+          id: "wheel-a",
+          type: b2.dynamicBody,
+          position: { x: -1.6, y: 2.25 },
+          radius: 0.35,
+          density: 1,
+          friction: 1,
+          style: { stroke: "#1a7f37", lineWidth: 2 },
+        });
+
+        wire.createWireCircle(world, {
+          id: "wheel-b",
+          type: b2.dynamicBody,
+          position: { x: 0.2, y: 2.25 },
+          radius: 0.35,
+          density: 1,
+          friction: 1,
+          style: { stroke: "#1a7f37", lineWidth: 2 },
+        });
+
+        stepWorld(b2, world, 90);
+
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        wire.draw(ctx, {
+          pixelsPerMeter: 32,
+          offsetX: canvas.width / 2,
+          offsetY: canvas.height - 60,
+        });
+
+        var transforms = wire.syncTransforms();
+        var drawnPixels = countDrawnPixels(ctx, canvas.width, canvas.height);
+
+        assert(wire.drawables.length === 4, "four drawables should be present");
+        assert(transforms.length >= wire.drawables.length * 3, "transform cache should fit drawables");
+        assert(drawnPixels > 100, "wireframe canvas should contain drawn pixels");
+
+        b2.destroyWorld(world);
+
+        var details = "drawables=" + wire.drawables.length + ", drawnPixels=" + drawnPixels;
+        document.getElementById("status").textContent = "Box2D v3 wireframe browser smoke test passed";
+        document.getElementById("status").className = "pass";
+        document.getElementById("details").textContent = details;
+        console.log("Box2D v3 wireframe browser smoke test passed: " + details);
+      })().catch(function (error) {
+        document.getElementById("status").textContent = "Box2D v3 wireframe browser smoke test failed";
+        document.getElementById("status").className = "fail";
+        document.getElementById("details").textContent = error && error.stack ? error.stack : String(error);
+        console.error(error);
+      });
+    </script>
+  </body>
+</html>

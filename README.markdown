@@ -28,6 +28,8 @@ The v3 work now has a separate build path and does not use the old WebIDL binder
 .\build-v3.ps1
 node test-v3.js
 node test-v3-browser.js
+node test-v3-wireframe.js
+node test-v3-browser.js test-v3-wireframe-browser.html "Box2D v3 wireframe browser smoke test passed"
 node benchmark-v3.js
 ```
 
@@ -53,6 +55,8 @@ console.log(b2.getBodyPosition(body));
 ```
 
 The v3 wrapper currently covers worlds, world tuning, body creation/control, box/circle/capsule/segment/polygon/chain shapes, shape filters/sensors/materials/properties, rule-based friction/restitution material mixing callbacks, distance/revolute/prismatic/wheel/motor/filter joints, closest ray casts, AABB overlap queries, post-step body/contact/sensor/joint events, body transforms/velocity/mass, and a batched transform read helper.
+
+Wireframe rendering helpers live in [box2d.v3.wireframe.js](box2d.v3.wireframe.js). They keep render geometry in JavaScript, create matching Box2D shapes, batch body transform reads, and draw wire shapes to canvas without querying Box2D for vertices.
 
 
 Details

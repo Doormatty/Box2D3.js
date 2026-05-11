@@ -176,6 +176,171 @@ Each frame, ask Box2D for changing data such as body transforms. Draw using the 
 
 This is similar to a caching layer, but more accurately it makes JS the source of truth for model/render data and Box2D the source of truth for physics state.
 
+## Wireframe Rendering Plan
+
+The v3 wrapper has enough physics surface to support wireframe objects, but the rendering layer should be implemented as application code instead of trying to resurrect v2-style debug draw callbacks. The plan is to build a small JS model that creates matching Box2D bodies/shapes and then renders from app-owned geometry using Box2D transforms.
+
+### 1. Define App-Owned Render Objects
+
+Create a render object format that stores stable local-space geometry and references the Box2D handles created from that geometry.
+
+Suggested shape records:
+
+```js
+const object = {
+  id,
+  body,
+  transformIndex,
+  style: {
+    stroke: "#111827",
+    fill: null,
+    lineWidth: 2
+  },
+  shapes: [
+    { type: "polygon", vertices: [{ x: -1, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }], shape },
+    { type: "circle", center: { x: 0, y: 0 }, radius: 0.5, shape },
+    { type: "segment", p1: { x: -2, y: 0 }, p2: { x: 2, y: 0 }, shape },
+    { type: "capsule", center1: { x: -0.5, y: 0 }, center2: { x: 0.5, y: 0 }, radius: 0.2, shape },
+    { type: "chain", points: terrainPoints, chain }
+  ]
+};
+```
+
+Rules:
+
+- Store all draw geometry in local body coordinates.
+- Store one Box2D body handle per independently moving object.
+- Store Box2D shape or chain handles for lifecycle, filtering, queries, and events, not for drawing geometry.
+- For terrain, store the original point list and draw it as a polyline. If terrain is broken into several segment shapes instead of one chain, still keep one app-level point list for rendering.
+- For circles, store radius and optional local center.
+- For polygons, store the final local vertices used to create the physics shape. If the input vertices are hull-normalized before passing to Box2D, store the normalized vertices as the render source so physics and drawing match.
+
+### 2. Create Physics And Render Data Together
+
+Add factory helpers that create both the JS render record and the matching Box2D shape at the same time.
+
+Expected helpers:
+
+- `createWireBox(world, def)` creates a body, calls `b2.createBoxShape`, and stores four local vertices based on `hx` and `hy`.
+- `createWirePolygon(world, def)` creates a body, calls `b2.createPolygonShape`, and stores the local polygon vertices.
+- `createWireCircle(world, def)` creates a body, calls `b2.createCircleShape`, and stores the local center plus radius.
+- `createWireCapsule(world, def)` creates a body, calls `b2.createCapsuleShape`, and stores the two local capsule centers plus radius.
+- `createWireSegmentBody(world, def)` creates or reuses a static body, calls `b2.createSegmentShape`, and stores `p1` and `p2`.
+- `createWireChain(world, def)` creates or reuses a static body, calls `b2.createChain`, and stores the point list.
+
+These helpers should return app-level objects, not just Box2D handles. That keeps the rest of the renderer from needing to know how Box2D shapes are created.
+
+### 3. Maintain A Transform Cache
+
+Keep a stable array of body handles for drawable objects and update all transforms in one batch per frame.
+
+```js
+const bodies = drawables.map((item) => item.body);
+const transforms = b2.readBodyTransforms(bodies, existingFloat32Array);
+```
+
+The returned transform layout is three floats per body:
+
+- `x`
+- `y`
+- `angle`
+
+Each drawable stores its `transformIndex`, or the renderer can use its array index. Reuse the same `Float32Array` when the drawable count is stable to avoid per-frame allocations.
+
+For static terrain that never moves, either:
+
+- include it in the same transform batch for simplicity, or
+- cache its identity/static transform once and skip reading it every frame.
+
+### 4. Transform Local Geometry In The Renderer
+
+Do not ask Box2D for vertices during drawing. Apply the body transform to the local geometry in JS.
+
+```js
+function transformPoint(point, tx, ty, angle) {
+  const c = Math.cos(angle);
+  const s = Math.sin(angle);
+  return {
+    x: tx + c * point.x - s * point.y,
+    y: ty + s * point.x + c * point.y
+  };
+}
+```
+
+Canvas rendering can either transform every point manually or use the canvas matrix:
+
+```js
+ctx.save();
+ctx.translate(tx, ty);
+ctx.rotate(angle);
+drawLocalShape(ctx, shape);
+ctx.restore();
+```
+
+The canvas-matrix approach is usually simpler and avoids allocating transformed point objects.
+
+### 5. Draw Each Wire Shape Type
+
+Implement small render helpers for each supported shape type:
+
+- `drawWirePolygon(ctx, vertices)` starts at the first vertex, draws each remaining vertex, closes the path, and strokes it.
+- `drawWireCircle(ctx, center, radius)` draws an arc and optionally a radius line to show rotation.
+- `drawWireSegment(ctx, p1, p2)` draws one line.
+- `drawWireChain(ctx, points, isLoop)` draws a polyline and closes it only for loop chains.
+- `drawWireCapsule(ctx, center1, center2, radius)` draws the two semicircular ends plus tangent lines, or approximates the capsule with a generated outline for the first version.
+
+Keep fill optional. For pure wireframe rendering, default to `fill: null` and only stroke. If a solid debug view is useful later, use the same geometry and add fill without changing the physics model.
+
+### 6. Integrate With The Simulation Loop
+
+The frame loop should be ordered like this:
+
+```js
+function frame(dt) {
+  b2.step(world, dt, subStepCount);
+  syncDrawableTransforms();
+  clearCanvas();
+  drawWorldWireframes();
+  requestAnimationFrame(frame);
+}
+```
+
+For replay or scoring views, the same drawable model can be reused with recorded transforms instead of live Box2D reads.
+
+### 7. Handle Destruction And Mutation
+
+When removing an object:
+
+- destroy joints first if the object owns them
+- destroy shapes only if individual shape removal is needed
+- destroy the body or world for bulk cleanup
+- remove the drawable from the render array
+- compact or rebuild the transform body list
+
+When editing geometry:
+
+- treat most geometry edits as shape replacement
+- update the app-owned vertices/radius/points first
+- destroy the old Box2D shape or chain
+- create the replacement Box2D shape or chain from the same app-owned data
+- keep the body if only the attached shape changed
+
+### 8. Verify With Focused Tests
+
+Add tests around the model and renderer boundary rather than testing canvas pixels first:
+
+- factory helpers create the expected Box2D shape type and preserve matching local render geometry
+- `readBodyTransforms` returns finite transforms for every drawable body
+- a dynamic polygon's drawn transform follows `getBodyTransform`
+- static terrain can be drawn from stored points without shape introspection
+- destroying an object removes it from the transform batch and invalidates its Box2D handles
+
+For browser confidence, add one HTML smoke page that creates a wireframe box, circle, polygon car chassis, wheels, and terrain, steps the world, and draws them to canvas. A later Playwright test can check that the canvas is non-blank and that animated transforms change over several frames.
+
+### 9. Keep Debug Draw Separate
+
+This wireframe renderer is not the same as Box2D debug draw. It is app rendering backed by physics state. True debug draw callbacks can still be added later for diagnostics, but they should not be the primary rendering path for Genetic Cars or other app UIs.
+
 ## Performance Guidance
 
 The v3 wasm port should have a good chance of outperforming the old 12-year-old style port, but only if the wrapper avoids excessive crossing between JS and wasm.
@@ -394,6 +559,8 @@ Completed:
 20. Rebuilt `build/Box2D_v3.1.1.js` and `build/Box2D_v3.1.1.wasm` with the expanded body/shape/query/event shim exports.
 21. Added capsule shapes, chain shapes, joint event reads, and the P1 joint types: wheel, prismatic, motor, and filter.
 22. Added Node test coverage for all P1 wrapper concepts and rebuilt the generated v3 wasm artifacts.
+23. Added `box2d.v3.wireframe.js` with app-owned wireframe geometry factories, batched transform syncing, and canvas wire drawing helpers.
+24. Added Node and browser smoke tests for the wireframe helper.
 
 Still required:
 

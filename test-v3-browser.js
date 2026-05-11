@@ -6,6 +6,8 @@ const path = require("path");
 const { spawn } = require("child_process");
 
 const root = __dirname;
+const page = process.argv[2] || "test-v3-browser.html";
+const expectedText = process.argv[3] || "Box2D v3 browser smoke test passed";
 
 function browserCandidates() {
   const candidates = [];
@@ -78,7 +80,7 @@ function contentType(filePath) {
 function safePath(urlPath) {
   const decodedPath = decodeURIComponent(new URL(urlPath, "http://127.0.0.1").pathname);
   const normalizedPath = path.normalize(decodedPath).replace(/^([/\\])+/, "");
-  const filePath = path.join(root, normalizedPath || "test-v3-browser.html");
+  const filePath = path.join(root, normalizedPath || page);
   const relative = path.relative(root, filePath);
 
   if (relative.startsWith("..") || path.isAbsolute(relative)) {
@@ -157,14 +159,14 @@ function runBrowser(browser, url) {
 
   try {
     const { port } = server.address();
-    const result = await runBrowser(browser, `http://127.0.0.1:${port}/test-v3-browser.html`);
+    const result = await runBrowser(browser, `http://127.0.0.1:${port}/${page}`);
 
     assert(
-      result.stdout.includes("Box2D v3 browser smoke test passed"),
+      result.stdout.includes(expectedText),
       "browser smoke test did not report success"
     );
 
-    console.log("Box2D v3 browser smoke test passed");
+    console.log(expectedText);
   } finally {
     server.close();
   }
