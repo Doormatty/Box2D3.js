@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Box2D v3 Browser Smoke Test</title>
+    <style>
+      body {
+        color: #1b1f24;
+        font-family: system-ui, sans-serif;
+        margin: 2rem;
+      }
+
+      #status {
+        font-weight: 700;
+      }
+
+      #details {
+        white-space: pre-wrap;
+      }
+
+      .pass {
+        color: #137333;
+      }
+
+      .fail {
+        color: #b3261e;
+      }
+    </style>
+  </head>
+  <body>
+    <p id="status">Running Box2D v3 browser smoke test...</p>
+    <pre id="details"></pre>
+
+    <script src="build/Box2D_v3.1.1.js"></script>
+    <script src="box2d.v3.js"></script>
+    <script>
+      function assert(condition, message) {
+        if (!condition) {
+          throw new Error(message);
+        }
+      }
+
+      function finiteVec2(value, message) {
+        assert(Number.isFinite(value.x), message + ".x should be finite");
+        assert(Number.isFinite(value.y), message + ".y should be finite");
+      }
+
+      function stepWorld(b2, world, count) {
+        for (var i = 0; i < count; ++i) {
+          b2.step(world, 1 / 60, 4);
+        }
+      }
+
+      (async function run() {
+        var b2 = await Box2D();
+        var world = b2.createWorld({ gravity: { x: 0, y: -10 } });
+        var ground = b2.createBody(world, {
+          type: b2.staticBody,
+          position: { x: 0, y: 0 },
+        });
+        var body = b2.createBody(world, {
+          type: b2.dynamicBody,
+          position: { x: 0, y: 4 },
+        });
+
+        b2.createSegmentShape(ground, {
+          p1: { x: -10, y: 0 },
+          p2: { x: 10, y: 0 },
+        });
+        b2.createCircleShape(body, { radius: 0.5, density: 1, friction: 0.8 });
+
+        stepWorld(b2, world, 150);
+
+        var position = b2.getBodyPosition(body);
+        var velocity = b2.getBodyVelocity(body);
+        var mass = b2.getBodyMass(body);
+        var transform = b2.readBodyTransforms([body]);
+
+        finiteVec2(position, "circle position");
+        finiteVec2(velocity, "circle velocity");
+        assert(mass > 0, "circle body should report positive mass");
+        assert(position.y > 0.35 && position.y < 0.75, "circle should settle on the terrain segment");
+        assert(Math.abs(transform[0] - position.x) < 0.001, "batched transform x should match position");
+        assert(Math.abs(transform[1] - position.y) < 0.001, "batched transform y should match position");
+        assert(Number.isFinite(transform[2]), "batched transform angle should be finite");
+
+        b2.destroyWorld(world);
+
+        var details = "circle at (" + position.x.toFixed(3) + ", " + position.y.toFixed(3) + ")";
+        document.getElementById("status").textContent = "Box2D v3 browser smoke test passed";
+        document.getElementById("status").className = "pass";
+        document.getElementById("details").textContent = details;
+        console.log("Box2D v3 browser smoke test passed: " + details);
+      })().catch(function (error) {
+        document.getElementById("status").textContent = "Box2D v3 browser smoke test failed";
+        document.getElementById("status").className = "fail";
+        document.getElementById("details").textContent = error && error.stack ? error.stack : String(error);
+        console.error(error);
+      });
+    </script>
+  </body>
+</html>
