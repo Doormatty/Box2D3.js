@@ -35,6 +35,20 @@ function sameHandle(a, b) {
   return a && b && a.kind === b.kind && a.handle === b.handle;
 }
 
+function assertHandleIn(collection, handle, message) {
+  assert(collection.some((item) => sameHandle(item, handle)), message);
+}
+
+function assertHandleNotIn(collection, handle, message) {
+  assert(!collection.some((item) => sameHandle(item, handle)), message);
+}
+
+function assertAabbContains(aabb, point, message) {
+  assert(aabb, `${message} AABB should exist`);
+  assert(aabb.lowerBound.x <= point.x && aabb.upperBound.x >= point.x, `${message} AABB should contain x`);
+  assert(aabb.lowerBound.y <= point.y && aabb.upperBound.y >= point.y, `${message} AABB should contain y`);
+}
+
 function stepWorld(b2, world, count) {
   for (let i = 0; i < count; ++i) {
     b2.step(world, 1 / 60, 4);
@@ -360,6 +374,19 @@ function testBodyControlsAndShapeQueries(b2) {
   assertClose(b2.getShapeRestitution(shape), 0.1, 0.001, "updated shape restitution");
   assert.strictEqual(b2.getShapeFilter(shape).categoryBits, 8);
 
+  b2.enableShapeContactEvents(shape, true);
+  b2.enableShapeHitEvents(shape, true);
+  b2.enableShapeSensorEvents(shape, true);
+  assert(b2.areShapeContactEventsEnabled(shape), "contact events should be enabled");
+  assert(b2.areShapeHitEventsEnabled(shape), "hit events should be enabled");
+  assert(b2.areShapeSensorEventsEnabled(shape), "sensor events should be enabled");
+  b2.enableShapeContactEvents(shape, false);
+  b2.enableShapeHitEvents(shape, false);
+  b2.enableShapeSensorEvents(shape, false);
+  assert(!b2.areShapeContactEventsEnabled(shape), "contact events should be disabled");
+  assert(!b2.areShapeHitEventsEnabled(shape), "hit events should be disabled");
+  assert(!b2.areShapeSensorEventsEnabled(shape), "sensor events should be disabled");
+
   b2.setBodyTransform(body, { position: { x: 2, y: 3 }, angle: 0.25 });
   const transformed = b2.getBodyTransform(body);
   assertClose(transformed.position.x, 2, 0.001, "teleported body x");
@@ -415,6 +442,176 @@ function testBodyControlsAndShapeQueries(b2) {
   assert(b2.isBodyEnabled(body), "body should be re-enabled");
 
   b2.destroyShape(shape);
+  b2.destroyWorld(world);
+}
+
+function testShapeVariantsFilteredQueriesAndRayMisses(b2) {
+  const world = b2.createWorld({ gravity: { x: 0, y: 0 } });
+
+  const circleBody = b2.createBody(world, { type: b2.staticBody, position: { x: 0, y: 0 } });
+  const centeredCircle = b2.createCircleShape(circleBody, {
+    center: { x: 1, y: 0 },
+    radius: 0.25,
+    density: 0,
+    categoryBits: 0x0002,
+  });
+  assert.strictEqual(b2.getShapeType(centeredCircle), b2.circleShape);
+  assert(b2.testShapePoint(centeredCircle, { x: 1, y: 0 }), "offset circle should contain its world center");
+  assert(!b2.testShapePoint(centeredCircle, { x: 0, y: 0 }), "offset circle should not contain the body origin");
+  assertAabbContains(b2.getShapeAABB(centeredCircle), { x: 1, y: 0 }, "offset circle");
+
+  const capsuleBody = b2.createBody(world, { type: b2.staticBody, position: { x: 0, y: 2 } });
+  const capsule = b2.createCapsuleShape(capsuleBody, {
+    p1: { x: -0.5, y: 0 },
+    p2: { x: 0.5, y: 0 },
+    radius: 0.2,
+    density: 0,
+    filter: { categoryBits: 0x0004, maskBits: 0xffffffff },
+    surfaceMaterial: {
+      friction: 0.2,
+      restitution: 0.3,
+      userMaterialId: 77,
+      customColor: 0xff00ff00,
+    },
+  });
+  assert.strictEqual(b2.getShapeType(capsule), b2.capsuleShape);
+  assertAabbContains(b2.getShapeAABB(capsule), { x: 0, y: 2 }, "capsule");
+  assertMaterial(
+    b2.getShapeSurfaceMaterial(capsule),
+    {
+      friction: 0.2,
+      restitution: 0.3,
+      rollingResistance: 0,
+      tangentSpeed: 0,
+      userMaterialId: 77,
+      customColor: 0xff00ff00,
+    },
+    "nested capsule material"
+  );
+
+  const polygonBody = b2.createBody(world, { type: b2.staticBody, position: { x: 3, y: 0 } });
+  const typedPolygon = b2.createPolygonShape(polygonBody, {
+    vertices: new Float32Array([-0.4, -0.4, 0.4, -0.4, 0.4, 0.4, -0.4, 0.4]),
+    density: 0,
+    material: { friction: 0.1, restitution: 0.05, userMaterialId: 88 },
+    categoryBits: 0x0008,
+  });
+  assert.strictEqual(b2.getShapeType(typedPolygon), b2.polygonShape);
+  assert.strictEqual(b2.getShapeUserMaterial(typedPolygon), 88);
+
+  const chainBody = b2.createBody(world, { type: b2.staticBody, position: { x: 0, y: 0 } });
+  const openChain = b2.createChain(chainBody, {
+    points: new Float32Array([-3, -2, -2, -2, -1, -2, 0, -2, 1, -2, 2, -2]),
+    friction: 0.7,
+    filter: { categoryBits: 0x0010 },
+  });
+  assert.strictEqual(b2.getChainSegmentCount(openChain), 3, "open chain should expose real segments between ghost vertices");
+  const chainSegments = b2.getChainSegments(openChain);
+  assert.strictEqual(chainSegments.length, 3, "open chain segment handles should be returned");
+  assert(chainSegments.every((shape) => b2.getShapeType(shape) === b2.chainSegmentShape), "all chain segments should be chain segment shapes");
+
+  const allShapes = b2.overlapAABB(world, {
+    lowerBound: { x: -3, y: -3 },
+    upperBound: { x: 4, y: 3 },
+    capacity: 10,
+  });
+  assertHandleIn(allShapes, centeredCircle, "wide overlap should include the offset circle");
+  assertHandleIn(allShapes, capsule, "wide overlap should include the capsule");
+  assertHandleIn(allShapes, typedPolygon, "wide overlap should include the typed-array polygon");
+  assertHandleIn(allShapes, chainSegments[0], "wide overlap should include chain segment handles");
+
+  const categoryFourShapes = b2.overlapAABB(world, {
+    lower: { x: -3, y: -3 },
+    upper: { x: 4, y: 3 },
+    maskBits: 0x0004,
+    capacity: 10,
+  });
+  assertHandleIn(categoryFourShapes, capsule, "filtered overlap should include matching category");
+  assertHandleNotIn(categoryFourShapes, centeredCircle, "filtered overlap should exclude non-matching categories");
+  assertHandleNotIn(categoryFourShapes, typedPolygon, "filtered overlap should exclude non-matching typed polygon");
+
+  const limitedOverlap = b2.overlapAABB(world, {
+    lowerBound: { x: -3, y: -3 },
+    upperBound: { x: 4, y: 3 },
+    capacity: 1,
+  });
+  assert.strictEqual(limitedOverlap.length, 1, "overlap capacity should limit returned handles");
+
+  const filteredRay = b2.castRayClosest(world, {
+    origin: { x: -1, y: 0 },
+    translation: { x: 5, y: 0 },
+    maskBits: 0x0008,
+  });
+  assert(filteredRay && sameHandle(filteredRay.shape, typedPolygon), "filtered ray should skip nearer categories");
+  assertFiniteVec2(filteredRay.point, "filtered ray point");
+  assertFiniteVec2(filteredRay.normal, "filtered ray normal");
+  assert(filteredRay.nodeVisits >= 0 && filteredRay.leafVisits >= 0, "ray traversal counters should be populated");
+
+  const missedRay = b2.castRayClosest(world, {
+    origin: { x: -1, y: 3 },
+    translation: { x: 5, y: 0 },
+  });
+  assert.strictEqual(missedRay, null, "ray miss should return null");
+
+  const shapeRay = b2.rayCastShape(centeredCircle, {
+    origin: { x: -1, y: 0 },
+    translation: { x: 3, y: 0 },
+  });
+  assert(shapeRay && shapeRay.fraction > 0 && shapeRay.fraction < 1, "direct shape ray should hit offset circle");
+  assert(Number.isFinite(shapeRay.iterations), "shape ray iterations should be finite");
+  assert.strictEqual(
+    b2.rayCastShape(centeredCircle, {
+      origin: { x: -1, y: 0 },
+      translation: { x: 3, y: 0 },
+      maxFraction: 0.25,
+    }),
+    null,
+    "shape ray should honor maxFraction misses"
+  );
+
+  b2.destroyChain(openChain);
+  b2.destroyWorld(world);
+}
+
+function testHandleInputsBodyStateAndMassUpdates(b2) {
+  const world = b2.createWorld({ gravity: { x: 0, y: 0 } });
+  const body = b2.createBody(world.handle, {
+    type: b2.dynamicBody,
+    position: { x: 0, y: 0 },
+  });
+  const box = b2.createBoxShape(body.handle, { hx: 0.5, hy: 0.5, density: 2 });
+  const circle = b2.createCircleShape(body, { center: { x: 1, y: 0 }, radius: 0.25, density: 1 });
+
+  const massWithBothShapes = b2.getBodyMass(body);
+  assert(massWithBothShapes > 2, "body mass should include both attached shapes");
+  b2.destroyShape(circle, true);
+  const massAfterDestroy = b2.getBodyMass(body);
+  assert(massAfterDestroy > 0, "body should keep mass from remaining shape");
+  assert(massAfterDestroy < massWithBothShapes, "destroyShape(updateBodyMass) should reduce body mass");
+
+  b2.setBodyAwake(body, false);
+  assert(!b2.isBodyAwake(body), "body should be put to sleep explicitly");
+  b2.applyLinearImpulseToCenter(body, { x: 1, y: 0 }, true);
+  assert(b2.isBodyAwake(body), "waking impulse should wake a sleeping body");
+
+  b2.setBodyVelocity(body, { velocity: { x: 0, y: 0 }, angularVelocity: 0 });
+  b2.applyLinearImpulse(body, { x: 0, y: 1 }, { x: 0.5, y: 0 }, true);
+  stepWorld(b2, world, 1);
+  assert(b2.getBodyVelocity(body).y > 0, "off-center impulse should add linear velocity");
+  assert(Math.abs(b2.getBodyAngularVelocity(body)) > 0.001, "off-center impulse should add angular velocity");
+
+  b2.setBodyType(body, b2.kinematicBody);
+  assert.strictEqual(b2.getBodyType(body), b2.kinematicBody, "body type should change to kinematic");
+  b2.setBodyLinearVelocity(body, { x: 2, y: 0 });
+  const beforeKinematicStep = b2.getBodyPosition(body);
+  stepWorld(b2, world, 30);
+  const afterKinematicStep = b2.getBodyPosition(body);
+  assert(afterKinematicStep.x > beforeKinematicStep.x + 0.5, "kinematic body should move from linear velocity");
+
+  b2.setBodyType(body, b2.staticBody);
+  assert.strictEqual(b2.getBodyType(body), b2.staticBody, "body type should change to static");
+  b2.destroyShape(box);
+  b2.destroyBody(body);
   b2.destroyWorld(world);
 }
 
@@ -932,6 +1129,8 @@ function testP1WrapperConcepts(b2) {
   const chassisPosition = testCoreCarShapes(b2);
   testDistanceAndRevoluteJointFeatures(b2);
   testBodyControlsAndShapeQueries(b2);
+  testShapeVariantsFilteredQueriesAndRayMisses(b2);
+  testHandleInputsBodyStateAndMassUpdates(b2);
   testWrapperInputValidation(b2);
   testSurfaceMaterialsWorldTuningAndMixing(b2);
   testWorldEvents(b2);

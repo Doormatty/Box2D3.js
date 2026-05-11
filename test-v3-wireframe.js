@@ -30,6 +30,7 @@ function stepWorld(b2, world, count) {
 
 function createRecordingContext() {
   const calls = [];
+  const state = {};
   const ctx = {
     calls,
     save() {
@@ -70,6 +71,18 @@ function createRecordingContext() {
     },
   };
 
+  for (const property of ["lineWidth", "strokeStyle", "fillStyle"]) {
+    Object.defineProperty(ctx, property, {
+      get() {
+        return state[property];
+      },
+      set(value) {
+        state[property] = value;
+        calls.push([property, value]);
+      },
+    });
+  }
+
   return ctx;
 }
 
@@ -103,6 +116,7 @@ async function testWireframeFactoriesAndTransforms() {
     hx: 0.4,
     hy: 0.3,
     density: 1,
+    style: { stroke: "#2255aa", fill: "#aaccee", lineWidth: 4 },
   });
 
   const polygon = wire.createWirePolygon(world, {
@@ -172,6 +186,9 @@ async function testWireframeFactoriesAndTransforms() {
   wire.draw(ctx, { pixelsPerMeter: 20, offsetX: 320, offsetY: 220 });
   assert(ctx.calls.some((call) => call[0] === "arc"), "draw should issue arc calls for circles/capsules");
   assert(ctx.calls.some((call) => call[0] === "lineTo"), "draw should issue line calls for polygons/chains");
+  assert(ctx.calls.some((call) => call[0] === "fill"), "draw should fill styled wire shapes");
+  assert(ctx.calls.some((call) => call[0] === "strokeStyle" && call[1] === "#2255aa"), "draw should apply drawable stroke style");
+  assert(ctx.calls.some((call) => call[0] === "lineWidth" && Math.abs(call[1] - 0.2) < 0.0001), "draw should scale line width by pixels per meter");
   assert(ctx.calls.filter((call) => call[0] === "stroke").length >= 5, "draw should stroke all wire shapes");
 
   wire.removeDrawable(circle);
@@ -187,12 +204,78 @@ async function testWireframeFactoriesAndTransforms() {
   b2.destroyWorld(world);
 }
 
+async function testWireframeHullDrawingAndReuse() {
+  const hull = Wireframe.convexHull(new Float32Array([0, 0, 1, 0, 0.5, 0.25, 1, 1, 0, 1, 0, 0]));
+  assert.deepStrictEqual(
+    hull.map((point) => [point.x, point.y]),
+    [
+      [0, 0],
+      [1, 0],
+      [1, 1],
+      [0, 1],
+    ],
+    "convexHull should drop duplicate and interior typed-array points"
+  );
+
+  const b2 = await Box2D();
+  const wire = Wireframe.createWireframe(b2);
+  const world = b2.createWorld({ gravity: { x: 0, y: 0 } });
+  const body = b2.createBody(world, {
+    type: b2.dynamicBody,
+    position: { x: 2, y: 2 },
+    angle: 0.5,
+  });
+
+  const reused = wire.createWireBox(world, {
+    id: 123,
+    body,
+    halfWidth: 0.75,
+    halfHeight: 0.25,
+    style: { stroke: "#0f172a", fill: "#c7d2fe", lineWidth: 5 },
+  });
+  assert.strictEqual(reused.id, "123", "numeric drawable ids should be stringified");
+  assert.strictEqual(reused.body, body, "wire drawable should reuse provided bodies");
+  assert.strictEqual(reused.shapes[0].vertices[2].x, 0.75, "halfWidth alias should create local box vertices");
+
+  const normalized = wire.createWirePolygon(world, {
+    id: "normalized",
+    type: b2.staticBody,
+    vertices: new Float32Array([0, 0, 1, 0, 0.5, 0.25, 1, 1, 0, 1, 0, 0]),
+    density: 0,
+  });
+  assert.strictEqual(normalized.shapes[0].vertices.length, 4, "wire polygons should normalize noisy point sets by default");
+
+  const bodies = wire.rebuildTransformList();
+  assert.strictEqual(bodies.length, 2, "rebuildTransformList should track each drawable body");
+  assert.strictEqual(reused.transformIndex, 0, "rebuildTransformList should refresh transform indices");
+  assert.strictEqual(normalized.transformIndex, 1, "rebuildTransformList should refresh later transform indices");
+
+  const ctx = createRecordingContext();
+  wire.draw(ctx, { scale: 10, flipY: false, offsetX: 5, offsetY: 7 });
+  assert(ctx.calls.some((call) => call[0] === "scale" && call[1] === 10 && call[2] === 10), "flipY false should preserve positive y scale");
+  assert(ctx.calls.some((call) => call[0] === "translate" && call[1] === 5 && call[2] === 7), "draw options should apply canvas offsets");
+  assert(ctx.calls.some((call) => call[0] === "fillStyle" && call[1] === "#c7d2fe"), "draw should apply fill style");
+  assert(ctx.calls.some((call) => call[0] === "lineWidth" && Math.abs(call[1] - 0.5) < 0.0001), "draw should scale custom line width");
+
+  b2.destroyWorld(world);
+}
+
 async function testWireframeValidation() {
   const b2 = await Box2D();
   const wire = Wireframe.createWireframe(b2);
   const world = b2.createWorld({ gravity: { x: 0, y: 0 } });
   const ctx = createRecordingContext();
 
+  assert.throws(
+    () => Wireframe.createWireframe({}),
+    /Box2D v3 wrapper instance/,
+    "createWireframe should reject incompatible wrapper objects"
+  );
+  assert.throws(
+    () => Wireframe.convexHull([0, 0, 1]),
+    /x\/y pairs/,
+    "odd-length flat point arrays should be rejected"
+  );
   assert.throws(
     () => wire.createWireCircle(world, { radius: 0 }),
     /circle\.radius/,
@@ -218,12 +301,23 @@ async function testWireframeValidation() {
     /scale/,
     "non-positive draw scale should be rejected"
   );
+  assert.throws(
+    () =>
+      Wireframe.drawWireframes(
+        ctx,
+        [{ transformIndex: 0, style: { stroke: "#000", fill: null, lineWidth: 1 }, shapes: [{ type: "unknown" }] }],
+        new Float32Array([0, 0, 0])
+      ),
+    /Unknown wire shape type/,
+    "unknown wire shape types should be rejected during drawing"
+  );
 
   b2.destroyWorld(world);
 }
 
 (async function main() {
   await testWireframeFactoriesAndTransforms();
+  await testWireframeHullDrawingAndReuse();
   await testWireframeValidation();
   console.log("Box2D v3 wireframe tests passed");
 })().catch((error) => {
