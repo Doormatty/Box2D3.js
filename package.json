@@ -1,0 +1,64 @@
+{
+  "name": "box2d-v3-wasm",
+  "version": "0.1.0",
+  "description": "Box2D v3 JavaScript and WebAssembly wrapper",
+  "license": "Zlib AND MIT",
+  "homepage": "https://github.com/Doormatty/Box2D3.js#readme",
+  "bugs": {
+    "url": "https://github.com/Doormatty/Box2D3.js/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Doormatty/Box2D3.js.git"
+  },
+  "type": "commonjs",
+  "main": "./box2d.v3.js",
+  "types": "./box2d.v3.d.ts",
+  "exports": {
+    ".": {
+      "types": "./box2d.v3.d.ts",
+      "import": "./box2d.v3.js",
+      "require": "./box2d.v3.js",
+      "default": "./box2d.v3.js"
+    },
+    "./wireframe": {
+      "types": "./box2d.v3.wireframe.d.ts",
+      "import": "./box2d.v3.wireframe.js",
+      "require": "./box2d.v3.wireframe.js",
+      "default": "./box2d.v3.wireframe.js"
+    },
+    "./build/Box2D_v3.1.1.js": "./build/Box2D_v3.1.1.js",
+    "./build/Box2D_v3.1.1.wasm": "./build/Box2D_v3.1.1.wasm",
+    "./package.json": "./package.json"
+  },
+  "typesVersions": {
+    "*": {
+      "wireframe": [
+        "./box2d.v3.wireframe.d.ts"
+      ]
+    }
+  },
+  "files": [
+    "box2d.v3.js",
+    "box2d.v3.d.ts",
+    "box2d.v3.wireframe.js",
+    "box2d.v3.wireframe.d.ts",
+    "build/Box2D_v3.1.1.js",
+    "build/Box2D_v3.1.1.wasm",
+    "LICENSE",
+    "README.markdown"
+  ],
+  "keywords": [
+    "box2d",
+    "physics",
+    "wasm",
+    "webassembly",
+    "games"
+  ],
+  "scripts": {
+    "build": "powershell -ExecutionPolicy Bypass -File ./build-v3.ps1",
+    "test": "node test-v3.js && node test-v3-browser.js && node test-v3-wireframe.js && node test-v3-browser.js test-v3-wireframe-browser.html \"Box2D v3 wireframe browser smoke test passed\"",
+    "pack:check": "npm pack --dry-run",
+    "prepublishOnly": "npm run build && npm test && npm run pack:check"
+  }
+}

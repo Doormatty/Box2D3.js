@@ -1,6 +1,13 @@
 const assert = require("assert");
 const Box2D = require("./box2d.v3.js");
 const Wireframe = require("./box2d.v3.wireframe.js");
+const PackageWireframe = require("box2d-v3-wasm/wireframe");
+
+assert.strictEqual(
+  PackageWireframe.createWireframe,
+  Wireframe.createWireframe,
+  "package self-reference should resolve the wireframe helper"
+);
 
 function assertClose(actual, expected, tolerance, message) {
   assert(
@@ -144,6 +151,7 @@ async function testWireframeFactoriesAndTransforms() {
   assert.strictEqual(b2.getShapeType(circle.shapes[0].shape), b2.circleShape);
   assert.strictEqual(b2.getShapeType(capsule.shapes[0].shape), b2.capsuleShape);
   assert(b2.getChainSegmentCount(terrain.shapes[0].chain) > 0, "terrain chain should create segments");
+  assertFiniteTransform(wire.getTransform(circle), "unsynced circle transform");
 
   stepWorld(b2, world, 90);
   const transforms = wire.syncTransforms();
@@ -170,12 +178,53 @@ async function testWireframeFactoriesAndTransforms() {
   wire.rebuildTransformList();
   assert.strictEqual(wire.drawables.length, 5, "removeDrawable should remove the drawable");
   assert(!wire.bodies.includes(circle.body), "removed body should leave transform batch");
+  assert.throws(
+    () => wire.getTransform(circle),
+    /not registered/,
+    "removed drawables should not return stale transforms"
+  );
+
+  b2.destroyWorld(world);
+}
+
+async function testWireframeValidation() {
+  const b2 = await Box2D();
+  const wire = Wireframe.createWireframe(b2);
+  const world = b2.createWorld({ gravity: { x: 0, y: 0 } });
+  const ctx = createRecordingContext();
+
+  assert.throws(
+    () => wire.createWireCircle(world, { radius: 0 }),
+    /circle\.radius/,
+    "non-positive wire circle radius should be rejected"
+  );
+  assert.throws(
+    () => wire.createWireSegmentBody(world, { p1: { x: 0, y: 0 }, p2: { x: 0, y: 0 } }),
+    /segment endpoints/,
+    "zero-length wire segment should be rejected"
+  );
+  assert.throws(
+    () => wire.createWirePolygon(world, { vertices: [{ x: 0, y: 0 }, { x: 1, y: 0 }] }),
+    /polygon requires at least 3 points/,
+    "undersized wire polygon should be rejected"
+  );
+  assert.throws(
+    () => wire.createWireChain(world, { vertices: [0, 0, 1, 0, 2, 0] }),
+    /chain requires at least 4 points/,
+    "undersized wire chain should be rejected"
+  );
+  assert.throws(
+    () => Wireframe.drawWireframes(ctx, [], new Float32Array(0), { scale: 0 }),
+    /scale/,
+    "non-positive draw scale should be rejected"
+  );
 
   b2.destroyWorld(world);
 }
 
 (async function main() {
   await testWireframeFactoriesAndTransforms();
+  await testWireframeValidation();
   console.log("Box2D v3 wireframe tests passed");
 })().catch((error) => {
   console.error(error);

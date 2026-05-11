@@ -17,21 +17,47 @@
     return Number(value == null ? fallback : value);
   }
 
-  function readVec2(value, fallbackX, fallbackY) {
+  function readFiniteNumber(value, fallback, name) {
+    var number = readNumber(value, fallback);
+    if (!Number.isFinite(number)) {
+      throw new TypeError(name + " must be a finite number");
+    }
+
+    return number;
+  }
+
+  function readPositiveNumber(value, fallback, name) {
+    var number = readFiniteNumber(value, fallback, name);
+    if (number <= 0) {
+      throw new RangeError(name + " must be greater than zero");
+    }
+
+    return number;
+  }
+
+  function isArrayLike(value) {
+    return Array.isArray(value) || (ArrayBuffer.isView(value) && typeof value.length === "number");
+  }
+
+  function readVec2(value, fallbackX, fallbackY, name) {
     value = value || {};
+    name = name || "point";
     return {
-      x: readNumber(value.x, fallbackX),
-      y: readNumber(value.y, fallbackY),
+      x: readFiniteNumber(value.x, fallbackX, name + ".x"),
+      y: readFiniteNumber(value.y, fallbackY, name + ".y"),
     };
   }
 
-  function cloneVec2(value) {
-    return { x: Number(value.x), y: Number(value.y) };
+  function cloneVec2(value, name) {
+    return {
+      x: readFiniteNumber(value && value.x, undefined, name + ".x"),
+      y: readFiniteNumber(value && value.y, undefined, name + ".y"),
+    };
   }
 
   function cloneVec2Array(points) {
-    if (!Array.isArray(points) && !ArrayBuffer.isView(points)) {
-      throw new TypeError("points must be an array");
+    if (!isArrayLike(points)) {
+      throw new TypeError("points must be an array or typed array");
     }
 
     if (ArrayBuffer.isView(points) || typeof points[0] === "number") {
@@ -41,16 +67,39 @@
 
       var flatPoints = [];
       for (var i = 0; i < points.length; i += 2) {
-        flatPoints.push({ x: Number(points[i]), y: Number(points[i + 1]) });
+        flatPoints.push({
+          x: readFiniteNumber(points[i], undefined, "points[" + i + "]"),
+          y: readFiniteNumber(points[i + 1], undefined, "points[" + (i + 1) + "]"),
+        });
       }
       return flatPoints;
     }
 
-    return points.map(function (point) {
-      return Array.isArray(point)
-        ? { x: Number(point[0]), y: Number(point[1]) }
-        : cloneVec2(point);
-    });
+    var cloned = [];
+    for (var pi = 0; pi < points.length; ++pi) {
+      var point = points[pi];
+      cloned.push(
+        Array.isArray(point)
+          ? {
+              x: readFiniteNumber(point[0], undefined, "points[" + pi + "].x"),
+              y: readFiniteNumber(point[1], undefined, "points[" + pi + "].y"),
+            }
+          : cloneVec2(point, "points[" + pi + "]")
+      );
+    }
+    return cloned;
+  }
+
+  function validatePointCount(points, min, name) {
+    if (points.length < min) {
+      throw new RangeError(name + " requires at least " + min + " points");
+    }
+  }
+
+  function ensureDistinctPoints(a, b, name) {
+    if (a.x === b.x && a.y === b.y) {
+      throw new RangeError(name + " endpoints must be different");
+    }
   }
 
   function cross(origin, a, b) {
@@ -101,7 +150,7 @@
     return {
       stroke: style.stroke == null ? DEFAULT_STYLE.stroke : style.stroke,
       fill: style.fill == null ? DEFAULT_STYLE.fill : style.fill,
-      lineWidth: readNumber(style.lineWidth, DEFAULT_STYLE.lineWidth),
+      lineWidth: readPositiveNumber(style.lineWidth, DEFAULT_STYLE.lineWidth, "style.lineWidth"),
     };
   }
 
@@ -162,9 +211,9 @@
 
       createWireBox: function (world, def) {
         def = def || {};
+        var hx = readPositiveNumber(def.hx == null ? def.halfWidth : def.hx, 0.5, "box.hx");
+        var hy = readPositiveNumber(def.hy == null ? def.halfHeight : def.hy, 0.5, "box.hy");
         var body = createBody(b2, world, def);
-        var hx = readNumber(def.hx == null ? def.halfWidth : def.hx, 0.5);
-        var hy = readNumber(def.hy == null ? def.halfHeight : def.hy, 0.5);
         var shape = b2.createBoxShape(body, Object.assign({}, def, { hx: hx, hy: hy }));
 
         return createDrawable(this, world, def, {
@@ -175,8 +224,9 @@
 
       createWirePolygon: function (world, def) {
         def = def || {};
-        var body = createBody(b2, world, def);
         var vertices = def.normalizeHull === false ? cloneVec2Array(def.vertices) : convexHull(def.vertices);
+        validatePointCount(vertices, 3, "polygon");
+        var body = createBody(b2, world, def);
         var shape = b2.createPolygonShape(body, Object.assign({}, def, { vertices: vertices }));
 
         return createDrawable(this, world, def, {
@@ -187,9 +237,9 @@
 
       createWireCircle: function (world, def) {
         def = def || {};
+        var center = readVec2(def.center, 0, 0, "circle.center");
+        var radius = readPositiveNumber(def.radius, 0.5, "circle.radius");
         var body = createBody(b2, world, def);
-        var center = readVec2(def.center, 0, 0);
-        var radius = readNumber(def.radius, 0.5);
         var shape = b2.createCircleShape(body, Object.assign({}, def, { center: center, radius: radius }));
 
         return createDrawable(this, world, def, {
@@ -200,10 +250,11 @@
 
       createWireCapsule: function (world, def) {
         def = def || {};
+        var center1 = readVec2(def.center1 || def.p1, 0, -0.5, "capsule.center1");
+        var center2 = readVec2(def.center2 || def.p2, 0, 0.5, "capsule.center2");
+        ensureDistinctPoints(center1, center2, "capsule");
+        var radius = readPositiveNumber(def.radius, 0.25, "capsule.radius");
         var body = createBody(b2, world, def);
-        var center1 = readVec2(def.center1 || def.p1, 0, -0.5);
-        var center2 = readVec2(def.center2 || def.p2, 0, 0.5);
-        var radius = readNumber(def.radius, 0.25);
         var shape = b2.createCapsuleShape(body, Object.assign({}, def, {
           center1: center1,
           center2: center2,
@@ -218,9 +269,10 @@
 
       createWireSegmentBody: function (world, def) {
         def = def || {};
+        var p1 = readVec2(def.p1, 0, 0, "segment.p1");
+        var p2 = readVec2(def.p2, 0, 0, "segment.p2");
+        ensureDistinctPoints(p1, p2, "segment");
         var body = createBody(b2, world, Object.assign({ type: b2.staticBody }, def));
-        var p1 = readVec2(def.p1, 0, 0);
-        var p2 = readVec2(def.p2, 0, 0);
         var shape = b2.createSegmentShape(body, Object.assign({}, def, { p1: p1, p2: p2 }));
 
         return createDrawable(this, world, def, {
@@ -231,8 +283,9 @@
 
       createWireChain: function (world, def) {
         def = def || {};
-        var body = createBody(b2, world, Object.assign({ type: b2.staticBody }, def));
         var points = cloneVec2Array(def.points || def.vertices);
+        validatePointCount(points, 4, "chain");
+        var body = createBody(b2, world, Object.assign({ type: b2.staticBody }, def));
         var chain = b2.createChain(body, Object.assign({}, def, { vertices: points }));
 
         return createDrawable(this, world, def, {
@@ -269,6 +322,15 @@
       },
 
       getTransform: function (drawable) {
+        if (!drawable || typeof drawable.transformIndex !== "number") {
+          throw new TypeError("A wireframe drawable is required");
+        }
+
+        if (this.drawables.indexOf(drawable) === -1) {
+          throw new Error("Drawable is not registered with this wireframe manager");
+        }
+
+        this.syncTransforms();
         var index = drawable.transformIndex * 3;
         return {
           x: this.transforms[index],
@@ -297,9 +359,9 @@
 
   function drawWireframes(ctx, drawables, transforms, options) {
     options = options || {};
-    var scale = readNumber(options.pixelsPerMeter || options.scale, 1);
-    var offsetX = readNumber(options.offsetX, 0);
-    var offsetY = readNumber(options.offsetY, 0);
+    var scale = readPositiveNumber(options.pixelsPerMeter == null ? options.scale : options.pixelsPerMeter, 1, "scale");
+    var offsetX = readFiniteNumber(options.offsetX, 0, "offsetX");
+    var offsetY = readFiniteNumber(options.offsetY, 0, "offsetY");
     var flipY = options.flipY !== false;
 
     ctx.save();

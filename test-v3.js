@@ -1,5 +1,8 @@
 const assert = require("assert");
 const Box2D = require("./box2d.v3.js");
+const PackageBox2D = require("box2d-v3-wasm");
+
+assert.strictEqual(PackageBox2D, Box2D, "package self-reference should resolve the main wrapper");
 
 function assertFiniteVec2(value, message) {
   assert(Number.isFinite(value.x), `${message}.x should be finite`);
@@ -412,6 +415,92 @@ function testBodyControlsAndShapeQueries(b2) {
   assert(b2.isBodyEnabled(body), "body should be re-enabled");
 
   b2.destroyShape(shape);
+  b2.destroyWorld(world);
+}
+
+function testWrapperInputValidation(b2) {
+  const world = b2.createWorld({ gravity: { x: 0, y: 0 } });
+  const body = b2.createBody(world, { type: b2.dynamicBody, position: { x: 0, y: 0 } });
+  const shape = b2.createCircleShape(body, { radius: 0.5, density: 1 });
+
+  assert.throws(
+    () => b2.createWorld({ gravity: { x: Number.NaN, y: 0 } }),
+    /world\.gravity\.x/,
+    "invalid gravity should be rejected before reaching wasm"
+  );
+  assert.throws(
+    () => b2.createBody(world, { type: 99 }),
+    /body\.type/,
+    "invalid body type should be rejected"
+  );
+  assert.throws(
+    () => b2.createBoxShape(body, { hx: 1 }),
+    /box\.hy/,
+    "missing box dimension should be rejected"
+  );
+  assert.throws(
+    () => b2.createCircleShape(body, { radius: 0 }),
+    /circle\.radius/,
+    "non-positive circle radius should be rejected"
+  );
+  assert.throws(
+    () => b2.createSegmentShape(body, { p1: { x: 0, y: 0 }, p2: { x: 0, y: 0 } }),
+    /segment endpoints/,
+    "zero-length segment should be rejected"
+  );
+  assert.throws(
+    () => b2.createPolygonShape(body, { vertices: [{ x: 0, y: 0 }, { x: 1, y: 0 }] }),
+    /polygon requires at least 3 vertices/,
+    "undersized polygon should be rejected"
+  );
+  assert.throws(
+    () =>
+      b2.createPolygonShape(body, {
+        vertices: [
+          { x: 1, y: 0 },
+          { x: 0.7, y: 0.7 },
+          { x: 0, y: 1 },
+          { x: -0.7, y: 0.7 },
+          { x: -1, y: 0 },
+          { x: -0.7, y: -0.7 },
+          { x: 0, y: -1 },
+          { x: 0.7, y: -0.7 },
+          { x: 1.1, y: 0 },
+        ],
+      }),
+    /polygon supports at most 8 vertices/,
+    "oversized polygon should be rejected"
+  );
+  assert.throws(
+    () => b2.createChain(body, { vertices: [0, 0, 1, 0, 2, 0] }),
+    /chain requires at least 4 vertices/,
+    "undersized chain should be rejected"
+  );
+  assert.throws(
+    () => b2.setShapeFriction(shape, -1),
+    /shape\.friction/,
+    "negative material values should be rejected"
+  );
+  assert.throws(
+    () => b2.overlapAABB(world, { capacity: 0 }),
+    /overlapAABB\.capacity/,
+    "invalid query capacity should be rejected"
+  );
+  assert.throws(
+    () => b2.castRayClosest(world, { origin: { x: Number.NaN, y: 0 } }),
+    /ray\.origin\.x/,
+    "invalid ray input should be rejected"
+  );
+
+  const emptyTransforms = [];
+  assert.strictEqual(b2.readBodyTransforms([], emptyTransforms), emptyTransforms);
+
+  const transformArray = new Array(3);
+  assert.strictEqual(b2.readBodyTransforms([body], transformArray), transformArray);
+  assert(Number.isFinite(transformArray[0]), "plain array transform x should be populated");
+  assert(Number.isFinite(transformArray[1]), "plain array transform y should be populated");
+  assert(Number.isFinite(transformArray[2]), "plain array transform angle should be populated");
+
   b2.destroyWorld(world);
 }
 
@@ -843,6 +932,7 @@ function testP1WrapperConcepts(b2) {
   const chassisPosition = testCoreCarShapes(b2);
   testDistanceAndRevoluteJointFeatures(b2);
   testBodyControlsAndShapeQueries(b2);
+  testWrapperInputValidation(b2);
   testSurfaceMaterialsWorldTuningAndMixing(b2);
   testWorldEvents(b2);
   testP1WrapperConcepts(b2);

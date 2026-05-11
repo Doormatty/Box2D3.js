@@ -19,8 +19,66 @@
     return Number(value == null ? fallback : value);
   }
 
+  function readFiniteNumber(value, fallback, name) {
+    var number = readNumber(value, fallback);
+    if (!Number.isFinite(number)) {
+      throw new TypeError(name + " must be a finite number");
+    }
+
+    return number;
+  }
+
+  function readPositiveNumber(value, fallback, name) {
+    var number = readFiniteNumber(value, fallback, name);
+    if (number <= 0) {
+      throw new RangeError(name + " must be greater than zero");
+    }
+
+    return number;
+  }
+
+  function readNonNegativeNumber(value, fallback, name) {
+    var number = readFiniteNumber(value, fallback, name);
+    if (number < 0) {
+      throw new RangeError(name + " must be zero or greater");
+    }
+
+    return number;
+  }
+
+  function readInteger(value, fallback, name) {
+    var number = readFiniteNumber(value, fallback, name);
+    if (Math.floor(number) !== number) {
+      throw new RangeError(name + " must be an integer");
+    }
+
+    return number;
+  }
+
+  function readPositiveInteger(value, fallback, name) {
+    var number = readInteger(value, fallback, name);
+    if (number <= 0) {
+      throw new RangeError(name + " must be greater than zero");
+    }
+
+    return number;
+  }
+
+  function readUint32(value, fallback, name) {
+    var number = readInteger(value, fallback, name);
+    if (number < 0 || number > 0xffffffff) {
+      throw new RangeError(name + " must be a 32-bit unsigned integer");
+    }
+
+    return number >>> 0;
+  }
+
   function hasOwn(value, key) {
     return Object.prototype.hasOwnProperty.call(value || {}, key);
+  }
+
+  function isArrayLike(value) {
+    return Array.isArray(value) || (ArrayBuffer.isView(value) && typeof value.length === "number");
   }
 
   function handleValue(value, kind) {
@@ -51,27 +109,53 @@
     def = def || {};
     var filter = def.filter || {};
     return {
-      categoryBits: Number(def.categoryBits == null ? filter.categoryBits == null ? 1 : filter.categoryBits : def.categoryBits) >>> 0,
-      maskBits: Number(def.maskBits == null ? filter.maskBits == null ? 0xffffffff : filter.maskBits : def.maskBits) >>> 0,
-      groupIndex: Number(def.groupIndex == null ? filter.groupIndex == null ? 0 : filter.groupIndex : def.groupIndex),
+      categoryBits: readUint32(def.categoryBits == null ? filter.categoryBits : def.categoryBits, 1, "filter.categoryBits"),
+      maskBits: readUint32(def.maskBits == null ? filter.maskBits : def.maskBits, 0xffffffff, "filter.maskBits"),
+      groupIndex: readInteger(def.groupIndex == null ? filter.groupIndex : def.groupIndex, 0, "filter.groupIndex"),
+    };
+  }
+
+  function readSurfaceMaterial(def) {
+    def = def || {};
+    var material = def.surfaceMaterial || def.material || {};
+    return {
+      friction: readNonNegativeNumber(def.friction == null ? material.friction : def.friction, 0.6, "surfaceMaterial.friction"),
+      restitution: readNonNegativeNumber(
+        def.restitution == null ? material.restitution : def.restitution,
+        0,
+        "surfaceMaterial.restitution"
+      ),
+      rollingResistance: readNonNegativeNumber(
+        def.rollingResistance == null ? material.rollingResistance : def.rollingResistance,
+        0,
+        "surfaceMaterial.rollingResistance"
+      ),
+      tangentSpeed: readFiniteNumber(
+        def.tangentSpeed == null ? material.tangentSpeed : def.tangentSpeed,
+        0,
+        "surfaceMaterial.tangentSpeed"
+      ),
+      userMaterialId: readUint32(
+        def.userMaterialId == null ? material.userMaterialId : def.userMaterialId,
+        0,
+        "surfaceMaterial.userMaterialId"
+      ),
+      customColor: readUint32(def.customColor == null ? material.customColor : def.customColor, 0, "surfaceMaterial.customColor"),
     };
   }
 
   function readShapeOptions(def, densityFallback) {
     def = def || {};
     var filter = readFilter(def);
-    var material = def.surfaceMaterial || def.material || {};
+    var material = readSurfaceMaterial(def);
     return {
-      density: Number(def.density == null ? densityFallback : def.density),
-      friction: Number(def.friction == null ? material.friction == null ? 0.6 : material.friction : def.friction),
-      restitution: Number(def.restitution == null ? material.restitution == null ? 0 : material.restitution : def.restitution),
-      rollingResistance: Number(
-        def.rollingResistance == null ? material.rollingResistance == null ? 0 : material.rollingResistance : def.rollingResistance
-      ),
-      tangentSpeed: Number(def.tangentSpeed == null ? material.tangentSpeed == null ? 0 : material.tangentSpeed : def.tangentSpeed),
-      userMaterialId:
-        Number(def.userMaterialId == null ? material.userMaterialId == null ? 0 : material.userMaterialId : def.userMaterialId) >>> 0,
-      customColor: Number(def.customColor == null ? material.customColor == null ? 0 : material.customColor : def.customColor) >>> 0,
+      density: readNonNegativeNumber(def.density, densityFallback, "shape.density"),
+      friction: material.friction,
+      restitution: material.restitution,
+      rollingResistance: material.rollingResistance,
+      tangentSpeed: material.tangentSpeed,
+      userMaterialId: material.userMaterialId,
+      customColor: material.customColor,
       groupIndex: filter.groupIndex,
       categoryBits: filter.categoryBits,
       maskBits: filter.maskBits,
@@ -83,8 +167,8 @@
   }
 
   function normalizeVertices(vertices) {
-    if (!Array.isArray(vertices) && !ArrayBuffer.isView(vertices)) {
-      throw new TypeError("vertices must be an array");
+    if (!isArrayLike(vertices)) {
+      throw new TypeError("vertices must be an array or typed array");
     }
 
     if (ArrayBuffer.isView(vertices)) {
@@ -92,7 +176,13 @@
         throw new Error("flat vertex arrays must contain x/y pairs");
       }
 
-      return Float32Array.from(vertices);
+      var typedFlat = Float32Array.from(vertices);
+      for (var ti = 0; ti < typedFlat.length; ++ti) {
+        if (!Number.isFinite(typedFlat[ti])) {
+          throw new TypeError("vertices[" + ti + "] must be a finite number");
+        }
+      }
+      return typedFlat;
     }
 
     if (vertices.length === 0) {
@@ -104,26 +194,63 @@
         throw new Error("flat vertex arrays must contain x/y pairs");
       }
 
-      return Float32Array.from(vertices);
+      var arrayFlat = Float32Array.from(vertices);
+      for (var ai = 0; ai < arrayFlat.length; ++ai) {
+        if (!Number.isFinite(arrayFlat[ai])) {
+          throw new TypeError("vertices[" + ai + "] must be a finite number");
+        }
+      }
+      return arrayFlat;
     }
 
     var flat = new Float32Array(vertices.length * 2);
     for (var i = 0; i < vertices.length; ++i) {
       var vertex = vertices[i];
       if (Array.isArray(vertex)) {
-        flat[i * 2] = Number(vertex[0]);
-        flat[i * 2 + 1] = Number(vertex[1]);
+        flat[i * 2] = readFiniteNumber(vertex[0], undefined, "vertices[" + i + "].x");
+        flat[i * 2 + 1] = readFiniteNumber(vertex[1], undefined, "vertices[" + i + "].y");
       } else {
-        flat[i * 2] = Number(vertex.x);
-        flat[i * 2 + 1] = Number(vertex.y);
+        flat[i * 2] = readFiniteNumber(vertex && vertex.x, undefined, "vertices[" + i + "].x");
+        flat[i * 2 + 1] = readFiniteNumber(vertex && vertex.y, undefined, "vertices[" + i + "].y");
       }
     }
 
     return flat;
   }
 
-  function readSurfaceMaterial(def) {
-    return readShapeOptions(def || {}, 0);
+  function validateVertexCount(count, min, max, name) {
+    if (count < min) {
+      throw new RangeError(name + " requires at least " + min + " vertices");
+    }
+
+    if (max != null && count > max) {
+      throw new RangeError(name + " supports at most " + max + " vertices");
+    }
+  }
+
+  function readFiniteVec2(value, fallbackX, fallbackY, name) {
+    value = value || {};
+    return {
+      x: readFiniteNumber(value.x, fallbackX, name + ".x"),
+      y: readFiniteNumber(value.y, fallbackY, name + ".y"),
+    };
+  }
+
+  function ensureDistinctPoints(a, b, name) {
+    if (a.x === b.x && a.y === b.y) {
+      throw new RangeError(name + " endpoints must be different");
+    }
+  }
+
+  function copyFloat32ToOutput(output, source) {
+    if (typeof output.set === "function") {
+      output.set(source);
+      return;
+    }
+
+    for (var i = 0; i < source.length; ++i) {
+      output[i] = source[i];
+    }
   }
 
   async function Box2D(options) {
@@ -139,15 +266,18 @@
 
     function createWorld(def) {
       def = def || {};
-      var gravity = readVec2(def.gravity, 0, -10);
+      var gravity = readFiniteVec2(def.gravity, 0, -10, "world.gravity");
       return makeHandle("world", Module._b2js_create_world(gravity.x, gravity.y));
     }
 
     function createBody(world, def) {
       def = def || {};
-      var position = readVec2(def.position, 0, 0);
-      var angle = Number(def.angle == null ? 0 : def.angle);
-      var type = Number(def.type == null ? api.staticBody : def.type);
+      var position = readFiniteVec2(def.position, 0, 0, "body.position");
+      var angle = readFiniteNumber(def.angle, 0, "body.angle");
+      var type = readInteger(def.type, api.staticBody, "body.type");
+      if (type < api.staticBody || type > api.dynamicBody) {
+        throw new RangeError("body.type must be staticBody, kinematicBody, or dynamicBody");
+      }
 
       return makeHandle("body", Module._b2js_create_body(handleValue(world, "world"), type, position.x, position.y, angle));
     }
@@ -155,12 +285,14 @@
     function createBoxShape(body, def) {
       def = def || {};
       var options = readShapeOptions(def, 1);
+      var hx = readPositiveNumber(def.hx == null ? def.halfWidth : def.hx, undefined, "box.hx");
+      var hy = readPositiveNumber(def.hy == null ? def.halfHeight : def.hy, undefined, "box.hy");
       return makeHandle(
         "shape",
         Module._b2js_create_box_shape(
           handleValue(body, "body"),
-          Number(def.hx),
-          Number(def.hy),
+          hx,
+          hy,
           options.density,
           options.friction,
           options.restitution,
@@ -181,7 +313,8 @@
 
     function createCircleShape(body, def) {
       def = def || {};
-      var center = readVec2(def.center, 0, 0);
+      var center = readFiniteVec2(def.center, 0, 0, "circle.center");
+      var radius = readPositiveNumber(def.radius, undefined, "circle.radius");
       var options = readShapeOptions(def, 1);
       return makeHandle(
         "shape",
@@ -189,7 +322,7 @@
           handleValue(body, "body"),
           center.x,
           center.y,
-          Number(def.radius),
+          radius,
           options.density,
           options.friction,
           options.restitution,
@@ -210,8 +343,10 @@
 
     function createCapsuleShape(body, def) {
       def = def || {};
-      var center1 = readVec2(def.center1 || def.p1, 0, -0.5);
-      var center2 = readVec2(def.center2 || def.p2, 0, 0.5);
+      var center1 = readFiniteVec2(def.center1 || def.p1, 0, -0.5, "capsule.center1");
+      var center2 = readFiniteVec2(def.center2 || def.p2, 0, 0.5, "capsule.center2");
+      ensureDistinctPoints(center1, center2, "capsule");
+      var radius = readPositiveNumber(def.radius, undefined, "capsule.radius");
       var options = readShapeOptions(def, 1);
       return makeHandle(
         "shape",
@@ -221,7 +356,7 @@
           center1.y,
           center2.x,
           center2.y,
-          Number(def.radius),
+          radius,
           options.density,
           options.friction,
           options.restitution,
@@ -242,8 +377,9 @@
 
     function createSegmentShape(body, def) {
       def = def || {};
-      var p1 = readVec2(def.p1, 0, 0);
-      var p2 = readVec2(def.p2, 0, 0);
+      var p1 = readFiniteVec2(def.p1, 0, 0, "segment.p1");
+      var p2 = readFiniteVec2(def.p2, 0, 0, "segment.p2");
+      ensureDistinctPoints(p1, p2, "segment");
       var options = readShapeOptions(def, 0);
       return makeHandle(
         "shape",
@@ -274,6 +410,7 @@
       def = def || {};
       var vertices = normalizeVertices(def.vertices);
       var count = vertices.length / 2;
+      validateVertexCount(count, 3, 8, "polygon");
       var ptr = Module._malloc(vertices.byteLength);
       var options = readShapeOptions(def, 1);
 
@@ -310,6 +447,7 @@
       def = def || {};
       var vertices = normalizeVertices(def.vertices || def.points);
       var count = vertices.length / 2;
+      validateVertexCount(count, 4, null, "chain");
       var ptr = Module._malloc(vertices.byteLength);
       var material = readSurfaceMaterial(def);
       var filter = readFilter(def);
@@ -640,8 +778,8 @@
     }
 
     function readBodyTransforms(bodies, out) {
-      if (!Array.isArray(bodies) && !ArrayBuffer.isView(bodies)) {
-        throw new TypeError("bodies must be an array");
+      if (!isArrayLike(bodies)) {
+        throw new TypeError("bodies must be an array or typed array");
       }
 
       var count = bodies.length;
@@ -651,8 +789,16 @@
       }
 
       var output = out || new Float32Array(count * 3);
+      if (!output || typeof output.length !== "number") {
+        throw new TypeError("output must be an array or typed array");
+      }
+
       if (output.length < count * 3) {
         throw new Error("output array is too small");
+      }
+
+      if (count === 0) {
+        return output;
       }
 
       var handlesPtr = Module._malloc(handles.byteLength);
@@ -661,7 +807,7 @@
       try {
         Module.HEAP32.set(handles, handlesPtr >> 2);
         Module._b2js_read_body_transforms(handlesPtr, count, outputPtr);
-        output.set(Module.HEAPF32.subarray(outputPtr >> 2, (outputPtr >> 2) + count * 3));
+        copyFloat32ToOutput(output, Module.HEAPF32.subarray(outputPtr >> 2, (outputPtr >> 2) + count * 3));
         return output;
       } finally {
         Module._free(handlesPtr);
@@ -686,8 +832,8 @@
 
     function castRayClosest(world, def) {
       def = def || {};
-      var origin = readVec2(def.origin, 0, 0);
-      var translation = readVec2(def.translation, 0, 0);
+      var origin = readFiniteVec2(def.origin, 0, 0, "ray.origin");
+      var translation = readFiniteVec2(def.translation, 0, 0, "ray.translation");
       var filter = readFilter(def);
       var ptr = Module._malloc(7 * Float32Array.BYTES_PER_ELEMENT);
 
@@ -711,10 +857,10 @@
 
     function overlapAABB(world, def) {
       def = def || {};
-      var lower = readVec2(def.lowerBound || def.lower, 0, 0);
-      var upper = readVec2(def.upperBound || def.upper, 0, 0);
+      var lower = readFiniteVec2(def.lowerBound || def.lower, 0, 0, "aabb.lowerBound");
+      var upper = readFiniteVec2(def.upperBound || def.upper, 0, 0, "aabb.upperBound");
       var filter = readFilter(def);
-      var capacity = Number(def.capacity == null ? 64 : def.capacity);
+      var capacity = readPositiveInteger(def.capacity, 64, "overlapAABB.capacity");
       var ptr = Module._malloc(capacity * Int32Array.BYTES_PER_ELEMENT);
 
       try {
@@ -885,13 +1031,21 @@
 
     function rayCastShape(shape, def) {
       def = def || {};
-      var origin = readVec2(def.origin, 0, 0);
-      var translation = readVec2(def.translation, 0, 0);
-      var maxFraction = readNumber(def.maxFraction, 1);
+      var origin = readFiniteVec2(def.origin, 0, 0, "ray.origin");
+      var translation = readFiniteVec2(def.translation, 0, 0, "ray.translation");
+      var maxFraction = readNonNegativeNumber(def.maxFraction, 1, "ray.maxFraction");
       var ptr = Module._malloc(6 * Float32Array.BYTES_PER_ELEMENT);
 
       try {
-        var hit = Module._b2js_shape_raycast(handleValue(shape, "shape"), origin.x, origin.y, translation.x, translation.y, maxFraction, ptr);
+        var hit = Module._b2js_shape_raycast(
+          handleValue(shape, "shape"),
+          origin.x,
+          origin.y,
+          translation.x,
+          translation.y,
+          maxFraction,
+          ptr
+        );
         if (!hit) {
           return null;
         }
@@ -1023,51 +1177,68 @@
         return Module._b2js_body_get_type(handleValue(body, "body"));
       },
       setBodyType: function (body, type) {
-        Module._b2js_body_set_type(handleValue(body, "body"), Number(type));
+        type = readInteger(type, undefined, "body.type");
+        if (type < api.staticBody || type > api.dynamicBody) {
+          throw new RangeError("body.type must be staticBody, kinematicBody, or dynamicBody");
+        }
+
+        Module._b2js_body_set_type(handleValue(body, "body"), type);
       },
       setBodyTransform: function (body, def) {
         def = def || {};
-        var position = readVec2(def.position, 0, 0);
-        Module._b2js_body_set_transform(handleValue(body, "body"), position.x, position.y, readNumber(def.angle, 0));
+        var position = readFiniteVec2(def.position, 0, 0, "body.position");
+        Module._b2js_body_set_transform(handleValue(body, "body"), position.x, position.y, readFiniteNumber(def.angle, 0, "body.angle"));
       },
       setBodyVelocity: function (body, def) {
         def = def || {};
-        var velocity = readVec2(def.linearVelocity || def.velocity, 0, 0);
-        Module._b2js_body_set_velocity(handleValue(body, "body"), velocity.x, velocity.y, readNumber(def.angularVelocity, 0));
+        var velocity = readFiniteVec2(def.linearVelocity || def.velocity, 0, 0, "body.linearVelocity");
+        Module._b2js_body_set_velocity(
+          handleValue(body, "body"),
+          velocity.x,
+          velocity.y,
+          readFiniteNumber(def.angularVelocity, 0, "body.angularVelocity")
+        );
       },
       setBodyLinearVelocity: function (body, velocity) {
-        velocity = readVec2(velocity, 0, 0);
+        velocity = readFiniteVec2(velocity, 0, 0, "body.linearVelocity");
         Module._b2js_body_set_linear_velocity(handleValue(body, "body"), velocity.x, velocity.y);
       },
       setBodyAngularVelocity: function (body, angularVelocity) {
-        Module._b2js_body_set_angular_velocity(handleValue(body, "body"), Number(angularVelocity));
+        Module._b2js_body_set_angular_velocity(
+          handleValue(body, "body"),
+          readFiniteNumber(angularVelocity, undefined, "body.angularVelocity")
+        );
       },
       getBodyAngularVelocity: function (body) {
         return Module._b2js_body_get_angular_velocity(handleValue(body, "body"));
       },
       applyForce: function (body, force, point, wake) {
-        force = readVec2(force, 0, 0);
-        point = readVec2(point, 0, 0);
+        force = readFiniteVec2(force, 0, 0, "force");
+        point = readFiniteVec2(point, 0, 0, "point");
         Module._b2js_body_apply_force(handleValue(body, "body"), force.x, force.y, point.x, point.y, wake === false ? 0 : 1);
       },
       applyForceToCenter: function (body, force, wake) {
-        force = readVec2(force, 0, 0);
+        force = readFiniteVec2(force, 0, 0, "force");
         Module._b2js_body_apply_force_to_center(handleValue(body, "body"), force.x, force.y, wake === false ? 0 : 1);
       },
       applyTorque: function (body, torque, wake) {
-        Module._b2js_body_apply_torque(handleValue(body, "body"), Number(torque), wake === false ? 0 : 1);
+        Module._b2js_body_apply_torque(handleValue(body, "body"), readFiniteNumber(torque, undefined, "torque"), wake === false ? 0 : 1);
       },
       applyLinearImpulse: function (body, impulse, point, wake) {
-        impulse = readVec2(impulse, 0, 0);
-        point = readVec2(point, 0, 0);
+        impulse = readFiniteVec2(impulse, 0, 0, "impulse");
+        point = readFiniteVec2(point, 0, 0, "point");
         Module._b2js_body_apply_linear_impulse(handleValue(body, "body"), impulse.x, impulse.y, point.x, point.y, wake === false ? 0 : 1);
       },
       applyLinearImpulseToCenter: function (body, impulse, wake) {
-        impulse = readVec2(impulse, 0, 0);
+        impulse = readFiniteVec2(impulse, 0, 0, "impulse");
         Module._b2js_body_apply_linear_impulse_to_center(handleValue(body, "body"), impulse.x, impulse.y, wake === false ? 0 : 1);
       },
       applyAngularImpulse: function (body, impulse, wake) {
-        Module._b2js_body_apply_angular_impulse(handleValue(body, "body"), Number(impulse), wake === false ? 0 : 1);
+        Module._b2js_body_apply_angular_impulse(
+          handleValue(body, "body"),
+          readFiniteNumber(impulse, undefined, "impulse"),
+          wake === false ? 0 : 1
+        );
       },
       setBodyAwake: function (body, awake) {
         Module._b2js_body_set_awake(handleValue(body, "body"), awake ? 1 : 0);
@@ -1088,14 +1259,18 @@
         return !!Module._b2js_body_is_bullet(handleValue(body, "body"));
       },
       setBodyGravityScale: function (body, gravityScale) {
-        Module._b2js_body_set_gravity_scale(handleValue(body, "body"), Number(gravityScale));
+        Module._b2js_body_set_gravity_scale(handleValue(body, "body"), readFiniteNumber(gravityScale, undefined, "body.gravityScale"));
       },
       getBodyGravityScale: function (body) {
         return Module._b2js_body_get_gravity_scale(handleValue(body, "body"));
       },
       setBodyDamping: function (body, def) {
         def = def || {};
-        Module._b2js_body_set_damping(handleValue(body, "body"), readNumber(def.linearDamping, 0), readNumber(def.angularDamping, 0));
+        Module._b2js_body_set_damping(
+          handleValue(body, "body"),
+          readNonNegativeNumber(def.linearDamping, 0, "body.linearDamping"),
+          readNonNegativeNumber(def.angularDamping, 0, "body.angularDamping")
+        );
       },
       getBodyDamping: function (body) {
         var handle = handleValue(body, "body");
@@ -1137,19 +1312,26 @@
         return !!Module._b2js_shape_is_sensor(handleValue(shape, "shape"));
       },
       setShapeDensity: function (shape, density, updateBodyMass) {
-        Module._b2js_shape_set_density(handleValue(shape, "shape"), Number(density), updateBodyMass === false ? 0 : 1);
+        Module._b2js_shape_set_density(
+          handleValue(shape, "shape"),
+          readNonNegativeNumber(density, undefined, "shape.density"),
+          updateBodyMass === false ? 0 : 1
+        );
       },
       getShapeDensity: function (shape) {
         return Module._b2js_shape_get_density(handleValue(shape, "shape"));
       },
       setShapeFriction: function (shape, friction) {
-        Module._b2js_shape_set_friction(handleValue(shape, "shape"), Number(friction));
+        Module._b2js_shape_set_friction(handleValue(shape, "shape"), readNonNegativeNumber(friction, undefined, "shape.friction"));
       },
       getShapeFriction: function (shape) {
         return Module._b2js_shape_get_friction(handleValue(shape, "shape"));
       },
       setShapeRestitution: function (shape, restitution) {
-        Module._b2js_shape_set_restitution(handleValue(shape, "shape"), Number(restitution));
+        Module._b2js_shape_set_restitution(
+          handleValue(shape, "shape"),
+          readNonNegativeNumber(restitution, undefined, "shape.restitution")
+        );
       },
       getShapeRestitution: function (shape) {
         return Module._b2js_shape_get_restitution(handleValue(shape, "shape"));
@@ -1157,7 +1339,7 @@
       setShapeSurfaceMaterial: setShapeSurfaceMaterial,
       getShapeSurfaceMaterial: getShapeSurfaceMaterial,
       setShapeUserMaterial: function (shape, userMaterialId) {
-        Module._b2js_shape_set_user_material(handleValue(shape, "shape"), Number(userMaterialId) >>> 0);
+        Module._b2js_shape_set_user_material(handleValue(shape, "shape"), readUint32(userMaterialId, undefined, "shape.userMaterialId"));
       },
       getShapeUserMaterial: function (shape) {
         return Module._b2js_shape_get_user_material(handleValue(shape, "shape")) >>> 0;
@@ -1193,7 +1375,7 @@
         return !!Module._b2js_shape_are_hit_events_enabled(handleValue(shape, "shape"));
       },
       testShapePoint: function (shape, point) {
-        point = readVec2(point, 0, 0);
+        point = readFiniteVec2(point, 0, 0, "point");
         return !!Module._b2js_shape_test_point(handleValue(shape, "shape"), point.x, point.y);
       },
       rayCastShape: rayCastShape,
@@ -1606,7 +1788,7 @@
         return Module._b2js_motor_joint_get_max_spring_torque(jointHandle(joint));
       },
       setWorldGravity: function (world, gravity) {
-        gravity = readVec2(gravity, 0, -10);
+        gravity = readFiniteVec2(gravity, 0, -10, "world.gravity");
         Module._b2js_world_set_gravity(handleValue(world, "world"), gravity.x, gravity.y);
       },
       getWorldGravity: function (world) {
@@ -1629,13 +1811,19 @@
         return !!Module._b2js_world_is_continuous_enabled(handleValue(world, "world"));
       },
       setWorldRestitutionThreshold: function (world, value) {
-        Module._b2js_world_set_restitution_threshold(handleValue(world, "world"), Number(value));
+        Module._b2js_world_set_restitution_threshold(
+          handleValue(world, "world"),
+          readNonNegativeNumber(value, undefined, "world.restitutionThreshold")
+        );
       },
       getWorldRestitutionThreshold: function (world) {
         return Module._b2js_world_get_restitution_threshold(handleValue(world, "world"));
       },
       setWorldHitEventThreshold: function (world, value) {
-        Module._b2js_world_set_hit_event_threshold(handleValue(world, "world"), Number(value));
+        Module._b2js_world_set_hit_event_threshold(
+          handleValue(world, "world"),
+          readNonNegativeNumber(value, undefined, "world.hitEventThreshold")
+        );
       },
       getWorldHitEventThreshold: function (world) {
         return Module._b2js_world_get_hit_event_threshold(handleValue(world, "world"));
@@ -1644,19 +1832,25 @@
         def = def || {};
         Module._b2js_world_set_contact_tuning(
           handleValue(world, "world"),
-          readNumber(def.hertz, 30),
-          readNumber(def.dampingRatio, 10),
-          readNumber(def.pushSpeed, 3)
+          readNonNegativeNumber(def.hertz, 30, "world.contactHertz"),
+          readNonNegativeNumber(def.dampingRatio, 10, "world.contactDampingRatio"),
+          readNonNegativeNumber(def.pushSpeed, 3, "world.contactPushSpeed")
         );
       },
       setWorldContactRecycleDistance: function (world, value) {
-        Module._b2js_world_set_contact_recycle_distance(handleValue(world, "world"), Number(value));
+        Module._b2js_world_set_contact_recycle_distance(
+          handleValue(world, "world"),
+          readNonNegativeNumber(value, undefined, "world.contactRecycleDistance")
+        );
       },
       getWorldContactRecycleDistance: function (world) {
         return Module._b2js_world_get_contact_recycle_distance(handleValue(world, "world"));
       },
       setWorldMaximumLinearSpeed: function (world, value) {
-        Module._b2js_world_set_maximum_linear_speed(handleValue(world, "world"), Number(value));
+        Module._b2js_world_set_maximum_linear_speed(
+          handleValue(world, "world"),
+          readPositiveNumber(value, undefined, "world.maximumLinearSpeed")
+        );
       },
       getWorldMaximumLinearSpeed: function (world) {
         return Module._b2js_world_get_maximum_linear_speed(handleValue(world, "world"));
@@ -1680,13 +1874,21 @@
         Module._b2js_clear_friction_mix_rules();
       },
       addFrictionMixRule: function (materialA, materialB, friction) {
-        return !!Module._b2js_add_friction_mix_rule(Number(materialA) >>> 0, Number(materialB) >>> 0, Number(friction));
+        return !!Module._b2js_add_friction_mix_rule(
+          readUint32(materialA, undefined, "materialA"),
+          readUint32(materialB, undefined, "materialB"),
+          readNonNegativeNumber(friction, undefined, "friction")
+        );
       },
       clearRestitutionMixRules: function () {
         Module._b2js_clear_restitution_mix_rules();
       },
       addRestitutionMixRule: function (materialA, materialB, restitution) {
-        return !!Module._b2js_add_restitution_mix_rule(Number(materialA) >>> 0, Number(materialB) >>> 0, Number(restitution));
+        return !!Module._b2js_add_restitution_mix_rule(
+          readUint32(materialA, undefined, "materialA"),
+          readUint32(materialB, undefined, "materialB"),
+          readNonNegativeNumber(restitution, undefined, "restitution")
+        );
       },
       castRayClosest: castRayClosest,
       overlapAABB: overlapAABB,
